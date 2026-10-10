@@ -1204,7 +1204,7 @@ async function play8(){
       const k=reduce?1:(t<p.d+.3?0:.075);
       p.x+=(g[0]-p.x)*k;p.y+=(g[1]-p.y)*k;
       const tw=.55+.45*Math.sin(now/500+p.a);
-      ptc.fillStyle=`rgba(${240+15*tw|0},${200+20*tw|0},${120+40*tw|0},${.65+.35*tw})`;
+      ptc.fillStyle=`rgba(247,210,140,${.65+.35*tw})`;
       ptc.beginPath();ptc.arc(p.x,p.y,p.r*(t<3.4?1.25:1),0,7);ptc.fill();
     }
     /* the dot draws the circle around the question mark */
@@ -1274,7 +1274,7 @@ requestAnimationFrame(tick);
 function mix(hex,to,k){const a=parseInt(hex.slice(1),16),b=parseInt(to.slice(1),16);
   const c=[16,8,0].map(sh=>Math.round(((a>>sh)&255)*(1-k)+((b>>sh)&255)*k));return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join('')}
 function applySettings(){const st=data.settings,r=document.documentElement.style,hex=/^#[0-9a-f]{6}$/i;
-  if(hex.test(st.sub||'')){r.setProperty('--gold',st.sub);r.setProperty('--gold-hi',mix(st.sub,'#ffffff',.45));r.setProperty('--gold-lo',mix(st.sub,'#000000',.4))}
+  /* the heading colour is applied by the editor, which recolours every gold tone in this file */
   if(hex.test(st.bg||'')){r.setProperty('--navy',st.bg);r.setProperty('--ink-2',mix(st.bg,'#000000',.5));r.setProperty('--ink',mix(st.bg,'#000000',.78))}
   if(st.bgImg){$('bgimg').style.backgroundImage=`url("${st.bgImg}")`;$('bgimg').style.opacity=(st.vis??35)/100}
 }
