@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IMX Project</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Manrope:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: fixed sidebar editor on the left, live 16:9 preview on the right. Navy and gold to match the presentations. */
+:root{
+  --ink:#060a14; --panel:#0b1326; --panel-2:#101b33; --line:#22314f;
+  --gold:#d9b25f; --gold-hi:#f6dc9a; --gold-lo:#8a6a2c;
+  --text:#ece6d8; --muted:#9aa0ad; --danger:#e07a6a; --ok:#7fc79a;
+  --caps:"Cinzel",Georgia,serif; --ui:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--ink);color:var(--text);font:14px/1.45 var(--ui)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.app{display:grid;grid-template-columns:420px 1fr;height:100%}
+@media (max-width:900px){.app{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:auto;min-height:100%}.stage-wrap{position:sticky;top:0;order:-1}}
+
+/* sidebar */
+.side{display:flex;flex-direction:column;min-height:0;background:var(--panel);border-right:1px solid var(--line)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.logo{font-family:var(--caps);font-weight:700;font-size:22px;letter-spacing:.24em;color:var(--gold-hi)}
+.logo small{display:block;font-family:var(--ui);font-weight:500;font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.langs{display:flex;gap:2px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:3px}
+.langs button{background:none;border:0;padding:5px 9px;border-radius:6px;color:var(--muted);font-weight:700;font-size:12px}
+.langs button[aria-pressed="true"]{background:var(--gold);color:var(--ink)}
+.scroll{flex:1;overflow-y:auto;padding:12px 14px 20px;display:flex;flex-direction:column;gap:10px}
+.sec{border:1px solid var(--line);border-radius:10px;background:var(--panel-2)}
+.sec>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;font-weight:700;letter-spacing:.02em}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary .n{font-family:var(--caps);color:var(--gold);font-size:13px;min-width:22px}
+.sec>summary .st{margin-left:auto;font-size:11px;font-weight:600;color:var(--muted)}
+.sec>summary .st.req{color:var(--danger)}
+.sec>summary .st.done{color:var(--ok)}
+.sec>summary::after{content:"▾";color:var(--muted);transition:transform .2s}
+.sec[open]>summary::after{transform:rotate(180deg)}
+.body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:12px}
+.f{display:flex;flex-direction:column;gap:5px;min-width:0}
+.f>span{font-size:12px;color:var(--muted);font-weight:600}
+.f>span b{color:var(--danger)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+input[type=text],input[type=number],select,textarea{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:7px;padding:9px 10px;outline:none}
+textarea{resize:vertical;min-height:84px}
+input:focus,select:focus,textarea:focus{border-color:var(--gold)}
+input.bad{border-color:var(--danger)}
+.hint{font-size:12px;color:var(--muted)}
+.media{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.add{display:inline-flex;align-items:center;gap:8px;border:1px dashed var(--gold-lo);color:var(--gold-hi);background:transparent;border-radius:8px;padding:8px 12px;font-weight:600;position:relative}
+.add:hover{background:rgba(217,178,95,.08)}
+.add input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.thumb{position:relative;width:64px;height:48px;border-radius:6px;overflow:hidden;border:1px solid var(--gold-lo);background:var(--ink)}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb.round{width:52px;height:52px;border-radius:50%}
+.thumb .x,.mini{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(0,0,0,.75);color:#fff;font-size:12px;line-height:20px;padding:0}
+.chipfile{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:var(--ink);border:1px solid var(--line);font-size:12px}
+.chipfile button{background:none;border:0;color:var(--danger);padding:0 2px}
+.page{border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.page.off{opacity:.55}
+.phead{display:flex;align-items:center;gap:8px;padding:9px 10px}
+.phead .type{font-family:var(--caps);font-size:11px;letter-spacing:.14em;color:var(--gold);width:96px;flex:none}
+.phead input[type=text]{padding:6px 8px}
+.icon{width:30px;height:30px;flex:none;border-radius:7px;border:1px solid var(--line);background:var(--ink);color:var(--gold-hi);padding:0;display:grid;place-items:center}
+.icon:disabled{opacity:.3;cursor:default}
+.pbody{padding:2px 10px 12px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line)}
+.pbody[hidden]{display:none}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sw input{appearance:none;width:42px;height:24px;border-radius:12px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s}
+.sw input:checked{background:var(--gold)}
+.sw input:checked::after{left:21px}
+.sw input:focus-visible,.icon:focus-visible,button:focus-visible{outline:2px solid var(--gold-hi);outline-offset:2px}
+input[type=color]{width:100%;height:38px;padding:2px;background:var(--ink);border:1px solid var(--line);border-radius:7px;cursor:pointer}
+input[type=range]{width:100%;accent-color:var(--gold)}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;position:relative;background:var(--ink)}
+.card .del{position:absolute;top:8px;right:8px}
+.ghost{background:transparent;border:1px solid var(--gold-lo);color:var(--gold-hi);border-radius:8px;padding:8px 12px;font-weight:600}
+.ghost:hover{background:rgba(217,178,95,.08)}
+
+/* footer */
+.foot{border-top:1px solid var(--line);padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--panel)}
+.foot .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.create{background:var(--gold);color:var(--ink);border:0;border-radius:10px;padding:14px;font-weight:800;font-size:16px;letter-spacing:.06em}
+.create:disabled{background:#3a3424;color:#857a60;cursor:not-allowed}
+.missing{font-size:12px;color:var(--danger);text-align:center;min-height:16px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0d1830;border:1px solid var(--gold);color:var(--gold-hi);padding:10px 16px;border-radius:10px;z-index:9;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* preview */
+.stage-wrap{display:flex;flex-direction:column;gap:12px;padding:18px;min-width:0;min-height:0;background:radial-gradient(ellipse at 50% 40%,#0f1a33,var(--ink) 70%)}
+.pv-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pv-head h2{margin:0;font-family:var(--caps);font-size:14px;letter-spacing:.24em;color:var(--gold)}
+.pv-head .btns{display:flex;gap:8px}
+.frame{position:relative;width:100%;max-width:100%;aspect-ratio:16/9;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#000;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.pv-note{font-size:12px;color:var(--muted)}
+.fit{flex:1;min-height:0;display:flex;align-items:flex-start;justify-content:center}
+.fit .frame{max-height:100%;width:auto;height:auto;max-width:100%}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="top">
+      <div class="logo">IMX<small data-t="tagline"></small></div>
+      <div class="langs" role="group" aria-label="Interface language">
+        <button data-ui="uz">UZ</button><button data-ui="ru">RU</button><button data-ui="en">EN</button>
+      </div>
+    </div>
+
+    <div class="scroll" id="scroll">
+      <!-- 1. presentation -->
+      <details class="sec" open data-go="title">
+        <summary><span class="n">01</span><span data-t="s_pres"></span><span class="st" id="st1"></span></summary>
+        <div class="body">
+          <label class="f"><span><span data-t="topic"></span> <b>*</b></span><textarea id="topic" rows="3" data-k="topic"></textarea></label>
+          <label class="f"><span data-t="plang"></span>
+            <select id="plang"><option value="uz">O'zbekcha</option><option value="ru">Русский</option><option value="en">English</option></select></label>
+        </div>
+      </details>
+
+      <!-- 2. owner -->
+      <details class="sec" data-go="title">
+        <summary><span class="n">02</span><span data-t="s_owner"></span><span class="st" id="st2"></span></summary>
+        <div class="body">
+          <label class="f"><span><span data-t="fullname"></span> <b>*</b></span><input type="text" id="owner" data-k="owner"></label>
+          <label class="f"><span data-t="role"></span><input type="text" data-k="ownerRole" data-ph="ph_ownerRole"></label>
+          <div class="media" id="m_ownerPhoto"></div>
+        </div>
+      </details>
+
+      <!-- 3. supervisor / partner -->
+      <details class="sec" data-go="title">
+        <summary><span class="n">03</span><span data-t="s_sup"></span><span class="st" data-t="optional"></span></summary>
+        <div class="body">
+          <label class="f"><span data-t="fullname"></span><input type="text" data-k="sup"></label>
+          <label class="f"><span data-t="degree"></span><input type="text" data-k="supRole" data-ph="ph_supRole"></label>
+          <div class="media" id="m_supPhoto"></div>
+        </div>
+      </details>
+
+      <!-- 4. university -->
+      <details class="sec" data-go="title">
+        <summary><span class="n">04</span><span data-t="s_uni"></span><span class="st" data-t="optional"></span></summary>
+        <div class="body">
+          <label class="f"><span data-t="uniname"></span><input type="text" data-k="uni"></label>
+          <div class="media" id="m_uniLogo"></div>
+        </div>
+      </details>
+
+      <!-- 5. menu / pages -->
+      <details class="sec" data-go="reja">
+        <summary><span class="n">05</span><span data-t="s_menu"></span><span class="st" id="st5"></span></summary>
+        <div class="body">
+          <p class="hint" data-t="menuhint"></p>
+          <div id="pages" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+      </details>
+
+      <!-- 6. final page -->
+      <details class="sec" data-go="thanks">
+        <summary><span class="n">06</span><span data-t="s_final"></span></summary>
+        <div class="body">
+          <label class="f"><span data-t="thanksword"></span><input type="text" data-k="thanks" data-ph="ph_thanks"></label>
+          <label class="f"><span data-t="thankssub"></span><input type="text" data-k="qsub" data-ph="ph_qsub"></label>
+        </div>
+      </details>
+
+      <!-- 7. voice -->
+      <details class="sec">
+        <summary><span class="n">07</span><span data-t="s_voice"></span></summary>
+        <div class="body">
+          <label class="sw"><span data-t="animate"></span><input type="checkbox" id="v_animate"></label>
+          <label class="sw"><span data-t="narrate"></span><input type="checkbox" id="v_narrate"></label>
+          <label class="sw"><span data-t="control"></span><input type="checkbox" id="v_control"></label>
+          <label class="f"><span data-t="vlang"></span>
+            <select id="v_lang"><option value="uz-UZ">O'zbekcha</option><option value="ru-RU">Русский</option><option value="en-US">English</option></select></label>
+          <p class="hint" data-t="voicehint"></p>
+        </div>
+      </details>
+
+      <!-- 8. settings -->
+      <details class="sec">
+        <summary><span class="n">08</span><span data-t="s_settings"></span></summary>
+        <div class="body">
+          <div class="row2">
+            <label class="f"><span data-t="subcol"></span><input type="color" id="c_sub"></label>
+            <label class="f"><span data-t="bgcol"></span><input type="color" id="c_bg"></label>
+          </div>
+          <div class="media" id="m_bgImg"></div>
+          <label class="f"><span><span data-t="vis"></span> <output id="visOut"></output></span><input type="range" id="c_vis" min="0" max="100"></label>
+          <button class="ghost" id="resetSet" data-t="reset"></button>
+        </div>
+      </details>
+    </div>
+
+    <div class="foot">
+      <div class="two">
+        <button class="ghost" id="saveBtn" data-t="save"></button>
+        <label class="ghost add" style="justify-content:center;border-style:solid"><span data-t="open"></span><input type="file" accept=".json,application/json" id="openFile"></label>
+      </div>
+      <button class="ghost" id="exampleBtn" data-t="example"></button>
+      <button class="create" id="createBtn" data-t="create"></button>
+      <div class="missing" id="missing"></div>
+    </div>
+  </aside>
+
+  <main class="stage-wrap">
+    <div class="pv-head">
+      <h2 data-t="preview"></h2>
+      <div class="btns">
+        <button class="ghost" id="fromStart" data-t="fromstart"></button>
+        <button class="ghost" id="fullPv" data-t="fullpv"></button>
+      </div>
+    </div>
+    <div class="fit" id="fit"><div class="frame" id="frame"><iframe id="pv" title="Preview"></iframe></div></div>
+    <p class="pv-note" data-t="pvnote"></p>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* the presentation player, inserted by build.js */
+const PLAYER=__PLAYER__;
+
+/* ---------- interface language ---------- */
+const UI={
+uz:{tagline:"Interaktiv taqdimot yaratuvchi",s_pres:"Taqdimot",topic:"Mavzu",plang:"Taqdimot tili",s_owner:"Taqdimot egasi",fullname:"To'liq ism",role:"Lavozim yoki daraja",
+  s_sup:"Ilmiy rahbar yoki hamkor",degree:"Ilmiy daraja",optional:"ixtiyoriy",s_uni:"Universitet",uniname:"Universitet nomi",s_menu:"Menyu (sahifalar)",
+  menuhint:"Sahifalarni yoqing yoki o'chiring, nomini o'zgartiring va tartibini ↑ ↓ bilan almashtiring. Har bir sahifani ochib, matn va media qo'shing.",
+  s_final:"Yakuniy sahifa",thanksword:"Minnatdorchilik so'zi",thankssub:"Pastki matn",s_voice:"Ovoz va animatsiya",animate:"Avtomatik animatsiya",narrate:"Ovozli yo'lboshchi (matnlarni o'qiydi)",
+  control:"Ovozli boshqaruv (keyingi, orqaga, ijro, to'xta)",vlang:"Ovoz tili",voicehint:"Eng tabiiy ovoz uchun taqdimotni Microsoft Edge brauzerida oching. Ovozli boshqaruv Chrome yoki Edge'da ishlaydi.",
+  s_settings:"Sozlamalar",subcol:"Sarlavhalar rangi",bgcol:"Fon rangi",vis:"Fon rasmi ko'rinishi",reset:"Sozlamalarni tiklash",save:"Loyihani saqlash",open:"Loyihani ochish",
+  example:"Namunani yuklash",create:"YARATISH",preview:"Jonli ko'rinish",fromstart:"Boshidan",fullpv:"To'liq ekran",
+  pvnote:"Ko'rinish tahrirlagan bo'limingizga avtomatik o'tadi. YARATISH tugmasi brauzerda ochiladigan bitta HTML fayl yuklab beradi.",
+  addPhoto:"+ Rasm",addLogo:"+ Logotip",addImg:"+ Rasm",addImgs:"+ Rasmlar (10 tagacha)",addVideo:"+ Video",addBg:"+ Fon rasmi",remove:"O'chirish",
+  pname:"Sahifa nomi",pdesc:"Reja uchun qisqa izoh",text:"Matn",chartTitle:"Grafik nomi",unit:"Birlik",years:"Yillar (vergul bilan)",vals:"Qiymatlar (; bilan)",
+  chartHint:"Grafik kerak bo'lmasa, yillar va qiymatlarni bo'sh qoldiring.",problemsList:"Muammolar (har qatorda bittasi)",plan:"Reja",heading:"Sarlavha",
+  card:"Karta",addCard:"+ Karta qo'shish",videoHint:"Video sahifa boshida ijro etiladi, keyin animatsiya o'rniga sahifa ochiladi.",
+  need:"To'ldiring:",ready:"Tayyor! YARATISH tugmasini bosing",created:"Fayl yaratildi:",saved:"Loyiha saqlandi",opened:"Loyiha ochildi",badfile:"Bu fayl IMX loyihasi emas",
+  bigvideo:"Video katta, fayl hajmi oshadi",on:"Yoqilgan",off:"O'chirilgan",pages:"sahifa",
+  t_intro:"KIRISH",t_problems:"MUAMMOLAR",t_plans:"REJALAR",t_solutions:"YECHIMLAR",t_conclusion:"XULOSA",up:"Yuqoriga",down:"Pastga",show:"Ochish",confirmEx:"Namuna joriy ma'lumotlar o'rniga yuklansinmi? Yana bosing."},
+ru:{tagline:"Конструктор интерактивных презентаций",s_pres:"Презентация",topic:"Тема",plang:"Язык презентации",s_owner:"Автор",fullname:"Полное имя",role:"Должность или степень",
+  s_sup:"Научный руководитель или партнёр",degree:"Учёная степень",optional:"необязательно",s_uni:"Университет",uniname:"Название университета",s_menu:"Меню (страницы)",
+  menuhint:"Включайте и выключайте страницы, меняйте названия и порядок кнопками ↑ ↓. Откройте страницу, чтобы добавить текст и медиа.",
+  s_final:"Финальная страница",thanksword:"Слово благодарности",thankssub:"Подпись",s_voice:"Голос и анимация",animate:"Автоматическая анимация",narrate:"Голосовой гид (читает тексты)",
+  control:"Голосовое управление (далее, назад, играй, стоп)",vlang:"Язык голоса",voicehint:"Самый естественный голос — в браузере Microsoft Edge. Голосовое управление работает в Chrome и Edge.",
+  s_settings:"Настройки",subcol:"Цвет заголовков",bgcol:"Цвет фона",vis:"Видимость фонового изображения",reset:"Сбросить настройки",save:"Сохранить проект",open:"Открыть проект",
+  example:"Загрузить пример",create:"СОЗДАТЬ",preview:"Предпросмотр",fromstart:"С начала",fullpv:"Во весь экран",
+  pvnote:"Предпросмотр сам переходит к редактируемому разделу. Кнопка СОЗДАТЬ скачивает один HTML-файл, который открывается в браузере.",
+  addPhoto:"+ Фото",addLogo:"+ Логотип",addImg:"+ Изображение",addImgs:"+ Изображения (до 10)",addVideo:"+ Видео",addBg:"+ Фоновое изображение",remove:"Удалить",
+  pname:"Название страницы",pdesc:"Краткое описание для плана",text:"Текст",chartTitle:"Название графика",unit:"Единица",years:"Годы (через запятую)",vals:"Значения (через ;)",
+  chartHint:"Если график не нужен, оставьте годы и значения пустыми.",problemsList:"Проблемы (по одной в строке)",plan:"План",heading:"Заголовок",
+  card:"Карточка",addCard:"+ Добавить карточку",videoHint:"Видео воспроизводится в начале страницы, затем страница открывается без анимации.",
+  need:"Заполните:",ready:"Готово! Нажмите СОЗДАТЬ",created:"Файл создан:",saved:"Проект сохранён",opened:"Проект открыт",badfile:"Это не файл проекта IMX",
+  bigvideo:"Видео большое, файл станет тяжелее",on:"Вкл",off:"Выкл",pages:"стр.",
+  t_intro:"ВВЕДЕНИЕ",t_problems:"ПРОБЛЕМЫ",t_plans:"ПЛАНЫ",t_solutions:"РЕШЕНИЯ",t_conclusion:"ЗАКЛЮЧЕНИЕ",up:"Вверх",down:"Вниз",show:"Открыть",confirmEx:"Заменить текущие данные примером? Нажмите ещё раз."},
+en:{tagline:"Interactive presentation maker",s_pres:"Presentation",topic:"Topic",plang:"Presentation language",s_owner:"Presenter",fullname:"Full name",role:"Position or degree",
+  s_sup:"Supervisor or partner",degree:"Academic title",optional:"optional",s_uni:"University",uniname:"University name",s_menu:"Menu (pages)",
+  menuhint:"Turn pages on or off, rename them and change their order with ↑ ↓. Open a page to add its text and media.",
+  s_final:"Final page",thanksword:"Thank-you word",thankssub:"Line underneath",s_voice:"Voice and animation",animate:"Automatic animation",narrate:"Voice guide (reads the text aloud)",
+  control:"Voice control (next, back, play, stop)",vlang:"Voice language",voiceHint:"",voicehint:"For the most natural voice, open the presentation in Microsoft Edge. Voice control works in Chrome and Edge.",
+  s_settings:"Settings",subcol:"Heading colour",bgcol:"Background colour",vis:"Background image visibility",reset:"Reset settings",save:"Save project",open:"Open project",
+  example:"Load example",create:"CREATE",preview:"Live preview",fromstart:"From start",fullpv:"Fullscreen",
+  pvnote:"The preview jumps to the part you are editing. CREATE downloads one HTML file that opens in any browser.",
+  addPhoto:"+ Photo",addLogo:"+ Logo",addImg:"+ Picture",addImgs:"+ Pictures (up to 10)",addVideo:"+ Video",addBg:"+ Background image",remove:"Remove",
+  pname:"Page name",pdesc:"Short note for the outline",text:"Text",chartTitle:"Chart title",unit:"Unit",years:"Years (comma separated)",vals:"Values (separated by ;)",
+  chartHint:"Leave years and values empty if you don't need a chart.",problemsList:"Problems (one per line)",plan:"Plan",heading:"Heading",
+  card:"Card",addCard:"+ Add card",videoHint:"The video plays first; then the page opens without the intro animation.",
+  need:"Fill in:",ready:"Ready! Press CREATE",created:"File created:",saved:"Project saved",opened:"Project opened",badfile:"This is not an IMX project file",
+  bigvideo:"Large video, the file will be big",on:"On",off:"Off",pages:"pages",
+  t_intro:"INTRODUCTION",t_problems:"PROBLEMS",t_plans:"PLANS",t_solutions:"SOLUTIONS",t_conclusion:"CONCLUSION",up:"Move up",down:"Move down",show:"Open",confirmEx:"Replace your current content with the example? Press again."}
+};
+const PH={uz:{ph_ownerRole:"Magistrant",ph_supRole:"i.f.n., dotsent",ph_thanks:"RAHMAT",ph_qsub:"Savollaringiz bo'lsa, marhamat"},
+  ru:{ph_ownerRole:"Магистрант",ph_supRole:"к.э.н., доцент",ph_thanks:"СПАСИБО",ph_qsub:"С радостью отвечу на ваши вопросы"},
+  en:{ph_ownerRole:"Master's student",ph_supRole:"PhD, Associate Professor",ph_thanks:"THANK YOU",ph_qsub:"Happy to answer your questions"}};
+let ui='uz';
+const t=k=>UI[ui][k]??UI.en[k]??k;
+
+/* ---------- state ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const TYPES=['intro','problems','plans','solutions','conclusion'];
+const emptyChart=()=>({title:'',unit:'',years:[],vals:[],sample:false});
+function blank(){return{
+  lang:'uz',topic:'',owner:'',ownerRole:'',ownerPhoto:'',sup:'',supRole:'',supPhoto:'',uni:'',uniLogo:'',
+  menu:TYPES.map(type=>({type,name:'',text:'',on:true})),
+  intro:'',introImg:'',video:'',chart:emptyChart(),
+  problems:[],problemImgs:[],video4:'',
+  plans:[0,1,2,3].map(()=>({h:'',p:''})),video5:'',
+  cards:[{h:'',p:'',img:''}],video6:'',
+  concl:{text:'',img:'',video:'',chart:emptyChart()},
+  thanks:'',qsub:'',
+  voice:{animate:true,narrate:false,control:false,lang:'uz-UZ'},
+  settings:{sub:'#d9b25f',bg:'#16264a',bgImg:'',vis:35}}}
+let S=blank();
+/* videos stay as files in memory; the presentation gets them as data when it is created */
+const VIDEOS={};
+
+function example(){const e=blank();Object.assign(e,{
+  topic:"O'zbekistonda raqamli texnologiyalar va sun'iy intellekt yordamida turistlarni jalb etish hamda tartibga solish",
+  owner:"Ismoiljon Mominov",ownerRole:"Magistrant",sup:"Quvnoqov Xaydar Qosimovich",supRole:"i.f.n., dotsent",uni:"Toshkent davlat agrar universiteti",
+  intro:"Bugungi kunda turizm O'zbekiston iqtisodiyotining tez rivojlanayotgan tarmoqlaridan biriga aylanmoqda. Turistlar oqimining ortishi ularni jalb etish va tartibga solishning yangi, raqamli usullarini talab qiladi. Ushbu tadqiqot sun'iy intellekt va raqamli texnologiyalar yordamida turistlarni jalb etish hamda oqimni boshqarish imkoniyatlarini o'rganadi.",
+  chart:{title:"Xorijiy turistlar soni, mln kishi",unit:"mln",years:[2017,2018,2019,2020,2021,2022,2023,2024],vals:[2.7,5.3,6.7,1.5,1.9,5.2,6.6,8.2],sample:true},
+  problems:["Turistlar oqimi mavsumiy va hududlar bo'yicha notekis taqsimlangan","Mashhur obyektlarda tirbandlik, kam ma'lum hududlarga e'tibor past","Real vaqtdagi ma'lumot va raqamli boshqaruv tizimlari yetishmaydi","Xorijiy turistlar uchun ko'p tilli raqamli xizmatlar cheklangan"],
+  plans:[{h:"Ma'lumot bazasi",p:"Hududlar bo'yicha turistlar oqimi ma'lumotlarini yig'ish va tizimlashtirish"},{h:"SI tahlili",p:"Sun'iy intellekt yordamida talab va mavsumiy yuklamani prognozlash"},{h:"Raqamli platforma",p:"Turistlar uchun ko'p tilli mobil ilova va interaktiv xarita"},{h:"Monitoring",p:"Real vaqtda oqimni kuzatish va tartibga solish tizimi"}],
+  cards:[{h:"Aqlli turistik xarita",p:"Sun'iy intellekt asosida shaxsiy marshrut tavsiya qiluvchi interaktiv xarita",img:''},{h:"Oqimni prognozlash",p:"Mashinali o'rganish orqali obyektlardagi yuklamani oldindan bashorat qilish",img:''},{h:"Raqamli chipta",p:"Vaqt oralig'lari bo'yicha onlayn bron va navbatsiz kirish tizimi",img:''},{h:"Ko'p tilli chatbot",p:"Turistlarga 24/7 o'zbek, rus va ingliz tillarida yordam",img:''}],
+  concl:{text:"Tadqiqot natijalari shuni ko'rsatadiki, raqamli texnologiyalar va sun'iy intellektni joriy etish turistlar oqimini hududlar bo'yicha teng taqsimlash, xizmat sifatini oshirish va qo'shimcha daromad olish imkonini beradi.",img:'',video:'',
+    chart:{title:"Prognoz: xorijiy turistlar, mln kishi",unit:"mln",years:[2025,2026,2027,2028,2029,2030],vals:[8.9,9.8,10.9,12.0,13.4,15.0],sample:true}}});
+  ['Mavzuning dolzarbligi, maqsad va vazifalar',"Turistlar oqimini boshqarishdagi raqamli bo'shliqlar","Sun'iy intellekt asosidagi monitoring tizimi","Raqamli platformalar orqali jalb etish va tartibga solish","Natijalar va amaliy takliflar"].forEach((x,i)=>e.menu[i].text=x);
+  return e}
+
+/* ---------- small helpers ---------- */
+let toastT=0;
+function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2600)}
+const readURL=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)});
+/* pictures are shrunk to at most 1600px so the finished file stays small */
+async function readImage(file,max=1600){
+  const url=await readURL(file);if(/svg|gif/.test(file.type))return url;
+  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+  const k=Math.min(1,max/Math.max(img.width,img.height));if(k===1&&file.size<600000)return url;
+  const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  return c.toDataURL(file.type==='image/png'?'image/png':'image/jpeg',.86)}
+const parseNums=(s,sep)=>String(s).split(sep).map(x=>parseFloat(x.trim().replace(',','.'))).filter(x=>!isNaN(x));
+const fmtNum=v=>String(v).replace('.',',');
+
+/* ---------- media pickers ---------- */
+function picker(box,{get,set,label,round,accept='image/*'}){
+  const el=$(box)||box;
+  const draw=()=>{const v=get();
+    el.innerHTML=(v?`<span class="thumb${round?' round':''}"><img alt="" src="${v}"><button class="x" aria-label="${esc(t('remove'))}">✕</button></span>`:'')+
+      `<label class="add">${esc(t(label))}<input type="file" accept="${accept}"></label>`;
+    el.querySelector('input').onchange=async e=>{const f=e.target.files[0];if(!f)return;set(await readImage(f));draw();changed()};
+    const x=el.querySelector('.x');if(x)x.onclick=()=>{set('');draw();changed()}};
+  draw();return draw}
+function videoPicker(el,key,obj,field){
+  const draw=()=>{const v=obj()[field];
+    el.innerHTML=(v&&VIDEOS[v]?`<span class="chipfile">🎬 ${esc(VIDEOS[v].name)} <button aria-label="${esc(t('remove'))}">✕</button></span>`:'')+
+      `<label class="add">${esc(t('addVideo'))}<input type="file" accept="video/*"></label>`;
+    el.querySelector('input').onchange=e=>{const f=e.target.files[0];if(!f)return;
+      VIDEOS[key]={blob:f,name:f.name,url:URL.createObjectURL(f)};obj()[field]=key;if(f.size>60e6)toast(t('bigvideo'));draw();changed()};
+    const b=el.querySelector('.chipfile button');if(b)b.onclick=()=>{obj()[field]='';draw();changed()}};
+  draw()}
+
+/* ---------- page editors ---------- */
+const openPages=new Set();
+function chartFields(c){return `
+  <div class="row2"><label class="f"><span>${esc(t('chartTitle'))}</span><input type="text" data-c="title" value="${esc(c.title)}"></label>
+  <label class="f"><span>${esc(t('unit'))}</span><input type="text" data-c="unit" value="${esc(c.unit)}"></label></div>
+  <label class="f"><span>${esc(t('years'))}</span><input type="text" data-c="years" value="${esc(c.years.join(', '))}" placeholder="2020, 2021, 2022"></label>
+  <label class="f"><span>${esc(t('vals'))}</span><input type="text" data-c="vals" value="${esc(c.vals.map(fmtNum).join('; '))}" placeholder="1,5; 1,9; 5,2"></label>
+  <p class="hint">${esc(t('chartHint'))}</p>`}
+function bindChart(root,c){root.querySelectorAll('[data-c]').forEach(inp=>inp.oninput=()=>{const k=inp.dataset.c;
+  if(k==='years')c.years=parseNums(inp.value,/[,;\s]+/).map(Math.round);else if(k==='vals')c.vals=parseNums(inp.value,/[;\s]+/);else c[k]=inp.value;
+  c.sample=false;const bad=c.years.length&&c.vals.length&&c.years.length!==c.vals.length;
+  root.querySelector('[data-c=vals]').classList.toggle('bad',!!bad);changed()})}
+
+function pageBody(p){
+  const d=document.createElement('div');d.className='pbody';
+  if(p.type==='intro'||p.type==='conclusion'){
+    const o=p.type==='intro'?null:S.concl;
+    d.innerHTML=`<label class="f"><span>${esc(t('text'))}</span><textarea rows="5" data-f="text">${esc(o?o.text:S.intro)}</textarea></label>
+      <div class="media" data-m="img"></div><div class="media" data-m="vid"></div><p class="hint">${esc(t('videoHint'))}</p>${chartFields(o?o.chart:S.chart)}`;
+    d.querySelector('[data-f=text]').oninput=e=>{if(o)o.text=e.target.value;else S.intro=e.target.value;changed()};
+    picker(d.querySelector('[data-m=img]'),{get:()=>o?o.img:S.introImg,set:v=>{if(o)o.img=v;else S.introImg=v},label:'addImg'});
+    videoPicker(d.querySelector('[data-m=vid]'),'v_'+p.type,()=>o||S,o?'video':'video');
+    bindChart(d,o?o.chart:S.chart);
+  }else if(p.type==='problems'){
+    d.innerHTML=`<label class="f"><span>${esc(t('problemsList'))}</span><textarea rows="5" data-f="list">${esc(S.problems.join('\n'))}</textarea></label>
+      <div class="media" data-m="imgs"></div><div class="media" data-m="vid"></div><p class="hint">${esc(t('videoHint'))}</p>`;
+    d.querySelector('[data-f=list]').oninput=e=>{S.problems=e.target.value.split('\n').map(s=>s.trim()).filter(Boolean).slice(0,6);changed()};
+    const imgs=d.querySelector('[data-m=imgs]');
+    const drawImgs=()=>{imgs.innerHTML=S.problemImgs.map((src,i)=>`<span class="thumb"><img alt="" src="${src}"><button class="x" data-i="${i}" aria-label="${esc(t('remove'))}">✕</button></span>`).join('')+
+        (S.problemImgs.length<10?`<label class="add">${esc(t('addImgs'))}<input type="file" accept="image/*" multiple></label>`:'');
+      const inp=imgs.querySelector('input');if(inp)inp.onchange=async e=>{const fs=[...e.target.files].slice(0,10-S.problemImgs.length);
+        for(const f of fs)S.problemImgs.push(await readImage(f));drawImgs();changed()};
+      imgs.querySelectorAll('.x').forEach(b=>b.onclick=()=>{S.problemImgs.splice(+b.dataset.i,1);drawImgs();changed()})};
+    drawImgs();videoPicker(d.querySelector('[data-m=vid]'),'v_problems',()=>S,'video4');
+  }else if(p.type==='plans'){
+    d.innerHTML=S.plans.map((pl,i)=>`<div class="card"><b style="color:var(--gold);font-size:12px">${esc(t('plan'))} ${i+1}</b>
+      <input type="text" data-i="${i}" data-x="h" placeholder="${esc(t('heading'))}" value="${esc(pl.h)}">
+      <textarea rows="2" data-i="${i}" data-x="p" placeholder="${esc(t('text'))}">${esc(pl.p)}</textarea></div>`).join('')+`<div class="media" data-m="vid"></div>`;
+    d.querySelectorAll('[data-x]').forEach(inp=>inp.oninput=()=>{S.plans[+inp.dataset.i][inp.dataset.x]=inp.value;changed()});
+    videoPicker(d.querySelector('[data-m=vid]'),'v_plans',()=>S,'video5');
+  }else if(p.type==='solutions'){
+    const list=document.createElement('div');list.style.cssText='display:flex;flex-direction:column;gap:8px';
+    const draw=()=>{list.innerHTML='';S.cards.forEach((c,i)=>{const el=document.createElement('div');el.className='card';
+        el.innerHTML=`<b style="color:var(--gold);font-size:12px">${esc(t('card'))} ${i+1}</b>
+          ${S.cards.length>1?`<button class="icon del" aria-label="${esc(t('remove'))}">✕</button>`:''}
+          <input type="text" data-x="h" placeholder="${esc(t('heading'))}" value="${esc(c.h)}">
+          <textarea rows="2" data-x="p" placeholder="${esc(t('text'))}">${esc(c.p)}</textarea><div class="media"></div>`;
+        el.querySelectorAll('[data-x]').forEach(inp=>inp.oninput=()=>{c[inp.dataset.x]=inp.value;changed()});
+        picker(el.querySelector('.media'),{get:()=>c.img,set:v=>c.img=v,label:'addImg'});
+        const del=el.querySelector('.del');if(del)del.onclick=()=>{S.cards.splice(i,1);draw();changed()};
+        list.appendChild(el)});};
+    draw();d.appendChild(list);
+    const add=document.createElement('button');add.className='ghost';add.textContent=t('addCard');
+    add.onclick=()=>{S.cards.push({h:'',p:'',img:''});draw();changed();list.lastChild.querySelector('input').focus()};
+    d.appendChild(add);const v=document.createElement('div');v.className='media';d.appendChild(v);
+    videoPicker(v,'v_solutions',()=>S,'video6');
+  }
+  return d}
+
+function drawPages(){
+  const box=$('pages');box.innerHTML='';
+  S.menu.forEach((p,i)=>{
+    const el=document.createElement('div');el.className='page'+(p.on?'':' off');el.dataset.type=p.type;
+    el.innerHTML=`<div class="phead">
+        <label class="sw" title="${esc(p.on?t('on'):t('off'))}"><input type="checkbox" ${p.on?'checked':''} aria-label="${esc(t('t_'+p.type))}"></label>
+        <span class="type">${esc(t('t_'+p.type))}</span>
+        <button class="icon" data-mv="-1" ${i===0?'disabled':''} aria-label="${esc(t('up'))}">↑</button>
+        <button class="icon" data-mv="1" ${i===S.menu.length-1?'disabled':''} aria-label="${esc(t('down'))}">↓</button>
+        <button class="icon" data-open aria-expanded="${openPages.has(p.type)}" aria-label="${esc(t('show'))}">${openPages.has(p.type)?'▴':'▾'}</button>
+      </div>`;
+    const sub=document.createElement('div');sub.className='pbody';sub.style.borderTop='0';sub.style.paddingTop='0';
+    sub.innerHTML=`<div class="row2"><label class="f"><span>${esc(t('pname'))}</span><input type="text" data-n="name" value="${esc(p.name)}" placeholder="${esc(PLAYER_DEF[S.lang][p.type])}"></label>
+      <label class="f"><span>${esc(t('pdesc'))}</span><input type="text" data-n="text" value="${esc(p.text)}"></label></div>`;
+    el.appendChild(sub);
+    if(openPages.has(p.type))el.appendChild(pageBody(p));
+    el.querySelector('.phead input').onchange=e=>{p.on=e.target.checked;el.classList.toggle('off',!p.on);changed(p.type)};
+    el.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{const j=i+ +b.dataset.mv;[S.menu[i],S.menu[j]]=[S.menu[j],S.menu[i]];drawPages();changed(p.type)});
+    el.querySelector('[data-open]').onclick=()=>{openPages.has(p.type)?openPages.delete(p.type):openPages.add(p.type);drawPages();focusType=p.type;refresh(true)};
+    sub.querySelectorAll('[data-n]').forEach(inp=>inp.oninput=()=>{p[inp.dataset.n]=inp.value;changed(p.type)});
+    el.addEventListener('focusin',()=>{focusType=p.type});
+    box.appendChild(el)});
+}
+const PLAYER_DEF={uz:{intro:'KIRISH',problems:'MUAMMOLAR',plans:'REJALAR',solutions:'YECHIMLAR',conclusion:'XULOSA'},
+  ru:{intro:'ВВЕДЕНИЕ',problems:'ПРОБЛЕМЫ',plans:'ПЛАНЫ',solutions:'РЕШЕНИЯ',conclusion:'ЗАКЛЮЧЕНИЕ'},
+  en:{intro:'INTRODUCTION',problems:'PROBLEMS',plans:'PLANS',solutions:'SOLUTIONS',conclusion:'CONCLUSION'}};
+
+/* ---------- simple bound fields ---------- */
+function bindSimple(){
+  document.querySelectorAll('[data-k]').forEach(inp=>{inp.value=S[inp.dataset.k]||'';
+    inp.oninput=()=>{S[inp.dataset.k]=inp.value;changed()}});
+  $('plang').value=S.lang;
+  $('v_animate').checked=S.voice.animate!==false;$('v_narrate').checked=!!S.voice.narrate;$('v_control').checked=!!S.voice.control;$('v_lang').value=S.voice.lang;
+  $('c_sub').value=S.settings.sub;$('c_bg').value=S.settings.bg;$('c_vis').value=S.settings.vis;$('visOut').textContent=S.settings.vis+'%';
+}
+$('plang').onchange=e=>{S.lang=e.target.value;S.voice.lang={uz:'uz-UZ',ru:'ru-RU',en:'en-US'}[S.lang];$('v_lang').value=S.voice.lang;applyPlaceholders();drawPages();changed()};
+[['v_animate','animate'],['v_narrate','narrate'],['v_control','control']].forEach(([id,k])=>$(id).onchange=e=>{S.voice[k]=e.target.checked;changed()});
+$('v_lang').onchange=e=>{S.voice.lang=e.target.value;changed()};
+$('c_sub').oninput=e=>{S.settings.sub=e.target.value;changed()};
+$('c_bg').oninput=e=>{S.settings.bg=e.target.value;changed()};
+$('c_vis').oninput=e=>{S.settings.vis=+e.target.value;$('visOut').textContent=S.settings.vis+'%';changed()};
+$('resetSet').onclick=()=>{S.settings={sub:'#d9b25f',bg:'#16264a',bgImg:'',vis:35};bindSimple();drawMedia();changed()};
+
+let mediaDraws=[];
+function drawMedia(){mediaDraws=[
+  picker('m_ownerPhoto',{get:()=>S.ownerPhoto,set:v=>S.ownerPhoto=v,label:'addPhoto'}),
+  picker('m_supPhoto',{get:()=>S.supPhoto,set:v=>S.supPhoto=v,label:'addPhoto'}),
+  picker('m_uniLogo',{get:()=>S.uniLogo,set:v=>S.uniLogo=v,label:'addLogo',round:true}),
+  picker('m_bgImg',{get:()=>S.settings.bgImg,set:v=>S.settings.bgImg=v,label:'addBg'})]}
+
+function applyPlaceholders(){document.querySelectorAll('[data-ph]').forEach(el=>el.placeholder=PH[S.lang][el.dataset.ph])}
+function applyUI(){
+  document.documentElement.lang=ui;
+  document.querySelectorAll('[data-t]').forEach(el=>el.textContent=t(el.dataset.t));
+  document.querySelectorAll('.langs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.ui===ui));
+  drawMedia();drawPages();validate();
+}
+document.querySelectorAll('.langs button').forEach(b=>b.onclick=()=>{ui=b.dataset.ui;try{localStorage.setItem('imx-ui',ui)}catch(_){}applyUI()});
+
+/* ---------- validation: CREATE stays locked until name and topic are filled ---------- */
+function validate(){
+  const miss=[];if(!S.topic.trim())miss.push(t('topic'));if(!S.owner.trim())miss.push(t('fullname'));
+  $('createBtn').disabled=miss.length>0;
+  $('missing').textContent=miss.length?`${t('need')} ${miss.join(', ')}`:'';$('missing').style.color=miss.length?'':'var(--ok)';
+  $('st1').textContent=S.topic.trim()?'✓':'*';$('st1').className='st '+(S.topic.trim()?'done':'req');
+  $('st2').textContent=S.owner.trim()?'✓':'*';$('st2').className='st '+(S.owner.trim()?'done':'req');
+  $('st5').textContent=`${S.menu.filter(p=>p.on).length} ${t('pages')}`;
+}
+
+/* ---------- live preview ---------- */
+let focusType='title',pvTimer=0;
+function slideIndexFor(type){
+  const on=S.menu.filter(p=>p.on);if(type==='title')return 0;if(type==='reja')return on.length?1:0;
+  if(type==='thanks')return 1+(on.length?1:0)+on.length;
+  const k=on.findIndex(p=>p.type===type);return k<0?0:2+k}
+function presentationData(videoMode,start){
+  const d=JSON.parse(JSON.stringify(S));
+  for(const [o,f] of [[d,'video'],[d,'video4'],[d,'video5'],[d,'video6'],[d.concl,'video']]){const v=o[f];o[f]=v&&VIDEOS[v]?(videoMode==='url'?VIDEOS[v].url:VIDEOS[v].data||''):''}
+  if(start!=null)d.startAt=start;return d}
+function playerHTML(d){
+  const json=JSON.stringify(d).replace(/</g,'\\u003c');
+  return PLAYER.replace('__IMX_DATA__',()=>json).replace('__IMX_TITLE__',()=>esc(d.topic||'IMX'))}
+function refresh(now){clearTimeout(pvTimer);pvTimer=setTimeout(()=>{
+  $('pv').srcdoc=playerHTML(presentationData('url',slideIndexFor(focusType)))},now?0:650)}
+function changed(type){if(type)focusType=type;validate();autosave();refresh()}
+document.querySelectorAll('.sec').forEach(sec=>sec.addEventListener('focusin',e=>{if(!e.target.closest('.page')&&sec.dataset.go)focusType=sec.dataset.go}));
+document.querySelectorAll('.sec').forEach(sec=>sec.addEventListener('toggle',()=>{if(sec.open&&sec.dataset.go){focusType=sec.dataset.go;refresh(true)}}));
+$('fromStart').onclick=()=>{focusType='title';refresh(true)};
+$('fullPv').onclick=()=>{const f=$('frame');try{f.requestFullscreen().catch(()=>{})}catch(_){}};
+function sizeFrame(){const box=$('fit'),w=box.clientWidth,h=box.clientHeight;if(!h)return;const k=Math.min(w/16,h/9);$('frame').style.width=Math.floor(k*16)+'px';$('frame').style.height=Math.floor(k*9)+'px'}
+new ResizeObserver(sizeFrame).observe($('fit'));
+
+/* ---------- create, save, open ---------- */
+function download(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+const fileName=ext=>((S.topic.trim()||'IMX').replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,' ').slice(0,60).trim()||'IMX')+ext;
+async function embedVideos(){for(const v of Object.values(VIDEOS))if(!v.data)v.data=await readURL(v.blob)}
+$('createBtn').onclick=async()=>{
+  if($('createBtn').disabled)return;$('createBtn').disabled=true;
+  try{await embedVideos();const d=presentationData('data',0);delete d.startAt;
+    const name=fileName('.html');download(name,new Blob([playerHTML(d)],{type:'text/html'}));toast(`${t('created')} ${name}`)}
+  finally{validate()}};
+$('saveBtn').onclick=async()=>{await embedVideos();
+  const p={imx:1,state:S,videos:Object.fromEntries(Object.entries(VIDEOS).map(([k,v])=>[k,{name:v.name,data:v.data}]))};
+  download(fileName('.imx.json'),new Blob([JSON.stringify(p)],{type:'application/json'}));toast(t('saved'))};
+$('openFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{const p=JSON.parse(await f.text());if(!p||p.imx!==1||!p.state)throw 0;
+    for(const [k,v] of Object.entries(p.videos||{})){const blob=await (await fetch(v.data)).blob();VIDEOS[k]={blob,name:v.name,data:v.data,url:URL.createObjectURL(blob)}}
+    load(p.state);toast(t('opened'))}catch(_){toast(t('badfile'))}};
+let exArm=0;
+$('exampleBtn').onclick=()=>{const filled=S.topic.trim()||S.owner.trim();
+  if(filled&&Date.now()-exArm>3000){exArm=Date.now();toast(t('confirmEx'));return}
+  load(example())};
+
+/* ---------- load and autosave (text and pictures; videos are kept only in saved projects) ---------- */
+function merge(base,src){for(const k in src){if(src[k]&&typeof src[k]==='object'&&!Array.isArray(src[k])&&base[k]&&typeof base[k]==='object')merge(base[k],src[k]);else if(src[k]!==undefined)base[k]=src[k]}return base}
+function load(state){S=merge(blank(),state);
+  const types=S.menu.map(p=>p.type);if(TYPES.some(x=>!types.includes(x)))S.menu=blank().menu;
+  while(S.plans.length<4)S.plans.push({h:'',p:''});if(!S.cards.length)S.cards=[{h:'',p:'',img:''}];
+  bindSimple();applyPlaceholders();drawMedia();drawPages();validate();focusType='title';refresh(true);autosave()}
+let saveT=0;
+function autosave(){clearTimeout(saveT);saveT=setTimeout(()=>{try{
+  const d=JSON.parse(JSON.stringify(S));for(const [o,f] of [[d,'video'],[d,'video4'],[d,'video5'],[d,'video6'],[d.concl,'video']])o[f]='';
+  localStorage.setItem('imx-project',JSON.stringify(d))}catch(_){}},800)}
+
+/* ---------- start ---------- */
+try{ui=localStorage.getItem('imx-ui')||ui}catch(_){}
+if(!UI[ui])ui='uz';
+let saved=null;try{saved=JSON.parse(localStorage.getItem('imx-project')||'null')}catch(_){}
+applyUI();load(saved||blank());
+</script>
+</body>
+</html>
