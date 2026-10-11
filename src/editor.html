@@ -479,8 +479,8 @@ function validate(){
 /* ---------- live preview ---------- */
 let focusType='title',pvTimer=0;
 function slideIndexFor(type){
-  const on=S.menu.filter(p=>p.on);if(type==='title')return 0;if(type==='reja')return on.length?1:0;
-  if(type==='thanks')return 1+(on.length?1:0)+on.length;
+  const on=S.menu.filter(p=>p.on);if(type==='title')return 0;if(type==='reja')return 1;
+  if(type==='thanks')return 2+on.length;
   const k=on.findIndex(p=>p.type===type);return k<0?0:2+k}
 function presentationData(videoMode,start){
   const d=JSON.parse(JSON.stringify(S));
