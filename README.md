@@ -1,58 +1,56 @@
-# IMX — interactive presentation maker
+# IMX: animated PowerPoint maker
 
-IMX builds animated, interactive presentations in the browser. You fill in a sidebar, watch a live preview, and press **CREATE** to download one `.html` file. Anyone can open that file in a browser and present it: no installation, no internet needed (except for the fonts).
+IMX builds animated presentations in the browser and saves them as **PowerPoint (.pptx)** files. Every page has a moving background, and its text appears with PowerPoint animations. Everything plays by itself in Slide Show (F5).
 
 ## How to use
 
-1. Download this repository (**Code → Download ZIP**) and unzip it.
-2. Open `index.html` in Chrome or Microsoft Edge.
-3. Fill in the sidebar. The topic and your full name are required; the **CREATE** button stays locked until both are filled.
-4. Press **CREATE**. Your presentation is saved to your Downloads folder as `<topic>.html`.
-5. Send that file to anyone. They double-click it, and it opens full-screen in their browser.
+1. Open `index.html` in **Chrome or Microsoft Edge**.
+2. Pick page styles in the gallery. Every style you click becomes a page.
+3. Select a page on the left and fill in its text and pictures on the right (**Matn / Content** tab).
+4. Open **Dizayn / Design** to choose a colour theme, fonts, text size, text animation and background image for the whole deck. The **Ko'rinish / Look** tab changes these for one page only.
+5. Press **YARATISH · PPTX / CREATE · PPTX**. The file downloads to your Downloads folder.
 
-Use **Save project** to keep a `.imx.json` file you can reopen later with **Open project** and keep editing. Text and pictures are also kept automatically in the browser between visits; videos are kept only in saved projects.
+**Save** keeps a `.imx.json` project you can **Open** later to keep editing.
 
-## What the sidebar contains
+## Page styles
 
-| Section | What it does |
-|---|---|
-| Presentation | Topic (required) and the presentation language (Uzbek, Russian, English) |
-| Presenter | Full name (required), position, photo |
-| Supervisor or partner | Optional name, academic title, photo |
-| University | Optional name and logo |
-| Menu (pages) | Turn pages on or off, rename them, reorder them, and add each page's text, pictures, chart and video |
-| Final page | Thank-you word and the line underneath |
-| Voice and animation | Automatic animation, voice guide that reads the slides, voice control (next, back, play, stop) |
-| Settings | Heading colour, background colour, background image and its visibility |
+| # | Style | Good for |
+|---|---|---|
+| 9 | Split Screen | text beside a picture |
+| 10 | Key Points | 3–5 main ideas as cards |
+| 11 | Puzzle | 4–6 parts of one idea |
+| 12 | Polaroid Table | photo gallery |
+| 13 | Domino Process | step-by-step process |
+| 14 | Rocket Stats | key numbers |
+| 15 | Balance Scale | before/after, pros/cons |
+| 16 | Window Blinds | one big photo with a caption |
+| 17 | Spotlight Stage | team, people, experts |
+| 18 | Growing Tree | ideas, mind map |
+| 19 | Device Mockup | app, website or video demo |
+| 20 | Quiz Cards | audience quiz |
+| 21 | Glassmorphism | text and numbers on glass panels |
+| 22 | Kinetic Type | slogan or short sentence |
+| 23 | Split-flap Display | title, date, slogan |
 
-## Pages and their animations
+Styles 1–8 (Curtain Title, Reja Hub, Open Book, Gears & Magnifier, Ball & Walls, Lego Builder, Closing Book, Particle Finale) are being rebuilt for PPTX. The old HTML version is kept in `src/legacy/`.
 
-1. **Title** — topic and university drop to the centre, presenter and supervisor panels sweep in.
-2. **Outline (Reja)** — a dot draws a circle, the word is written inside, page rows arrive from both sides.
-3. **Introduction** — a book opens, the title rises; text, picture and a live chart (line, bar, key figures).
-4. **Problems** — gears jam and smoke, a magnifier zooms in, the page splits open; slideshow of up to 10 pictures.
-5. **Plans** — a ball races and climbs walls; four plan panels slam together.
-6. **Solutions** — a stickman completes a Lego wall that spells the title; rotating 3D cards (add as many as you like).
-7. **Conclusion** — a book closes, the title lifts off the cover; same layout as Introduction.
-8. **Thank you & questions** — particles form the thank-you word; buttons jump back to any page during Q&A.
+## What the PPTX contains
 
-Any page can start with your own video instead of its animation.
-
-## Presenting
-
-- **→ / Space / Enter**: next page · **←**: back · **F**: full screen
-- The control bar appears when you move the mouse.
-- **Voice guide** reads each page aloud. The most natural voices are in Microsoft Edge.
-- **Voice control** listens for "next / keyingi / далее", "back / orqaga / назад", "play / ijro / играй" and "stop / to'xta / стоп". It works in Chrome and Edge and asks for microphone permission.
+- **Background animation:** an MP4 video per page, made in the browser (Chrome/Edge). If a browser cannot make MP4, IMX uses an animated GIF instead.
+- **Text:** real, editable PowerPoint text with entrance animations (Fade, Rise, Fly in, Wipe, Split, Zoom, Typewriter, Word by word) that start automatically after the background.
+- In **Kinetic Type** and **Split-flap Display** the words are part of the animation, so change them in IMX and create the file again.
+- Fonts come with Windows and Office and support Uzbek Latin and Cyrillic, so the file looks the same on other computers.
+- Videos need **PowerPoint 2016 or newer**.
 
 ## For developers
 
-The source lives in `src/`:
+- `src/styles.js`: the page styles (background drawing and text boxes)
+- `src/pptx.js`: video encoding and the PowerPoint writer
+- `src/editor.html`: the editor interface
+- `src/template/blank.pptx`: the empty 16:9 PowerPoint template
+- `vendor/`: JSZip, mp4-muxer, gifenc (with their licences)
 
-- `src/player.html` — the presentation player. It reads its content from the `__IMX_DATA__` JSON slot.
-- `src/editor.html` — the editor UI. It embeds the player at the `__PLAYER__` slot.
-
-After changing either file, rebuild `index.html`:
+After changing any of these, rebuild `index.html`:
 
 ```
 node build.js
