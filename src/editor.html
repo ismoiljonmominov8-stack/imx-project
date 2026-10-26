@@ -283,7 +283,7 @@ function snippet(p){const f=p.f;return f.heading||f.title||f.word||f.sentence||(
 /* ---------- live preview ---------- */
 const cv=$('cv'),ctx=cv.getContext('2d');let t0=performance.now(),hold=false;
 function curPage(){return S.pages.find(p=>p.id===sel)}
-function draw(){const p=curPage()||S.pages[0];if(!p){ctx.fillStyle='#070b16';ctx.fillRect(0,0,1600,900);ctx.fillStyle='#97a0b2';ctx.font='32px Georgia';ctx.textAlign='center';ctx.fillText(t('noPages'),800,460);return}
+function draw(){const p=curPage()||S.pages[0];if(!p){ctx.save();ctx.fillStyle='#070b16';ctx.fillRect(0,0,1600,900);ctx.fillStyle='#97a0b2';ctx.font='32px Georgia';ctx.textAlign='center';ctx.fillText(t('noPages'),800,460);ctx.restore();return}
   const st=ST.S[p.style],dur=ST.durOf(st,p.f)+2.4,el=(performance.now()-t0)/1000,tt=hold?dur:Math.min(el,dur);
   try{ST.render(ctx,p.style,p.f,tt,themeFor(p))}catch(e){console.error(e)}
   $('tbar').style.width=(Math.min(1,tt/dur)*100)+'%'}

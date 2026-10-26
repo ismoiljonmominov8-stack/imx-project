@@ -228,7 +228,7 @@ function drawEl(x,e,T,alpha=1,mult=1){if(alpha<=0.003||e.w<.5&&e.h<.5)return;x.s
     if(im){const k=Math.max(e.w/im.width,e.h/im.height);x.drawImage(im,(e.w-im.width*k)/2,(e.h-im.height*k)/2,im.width*k,im.height*k)}else{x.fillStyle='#334';x.fillRect(0,0,e.w,e.h)}}
   else if(e.t==='text'){if(e.tx){const size=e.sz*PX*mult;x.font=`${e.b?700:400} ${size}px ${fontOf(e,T)}`;if('letterSpacing' in x)x.letterSpacing=((e.sp||0)*PX)+'px';
     const lines=wrap(x,e.tx,e.w+2),lh=size*1.2*(e.lh||1),bh=lines.length*lh,y0=e.va==='m'?(e.h-bh)/2:e.va==='b'?e.h-bh:0;
-    const paint=ctx=>{ctx.textBaseline='alphabetic';lines.forEach((ln,i)=>{const lw=ctx.measureText(ln).width,X=e.al==='c'?(e.w-lw)/2:e.al==='r'?e.w-lw:0;ctx.fillText(ln,X,y0+i*lh+size*.95)})};
+    const paint=ctx=>{ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.direction='ltr';lines.forEach((ln,i)=>{const lw=ctx.measureText(ln).width,X=e.al==='c'?(e.w-lw)/2:e.al==='r'?e.w-lw:0;ctx.fillText(ln,X,y0+i*lh+size*.95)})};
     const im=e.fillImg&&imgFor(e.fillImg,T);
     if(im){const c2=document.createElement('canvas');c2.width=Math.ceil(e.w);c2.height=Math.ceil(e.h);const y=c2.getContext('2d');y.font=x.font;if('letterSpacing' in y)y.letterSpacing=x.letterSpacing;y.fillStyle='#000';paint(y);
       y.globalCompositeOperation='source-in';const k=Math.max(e.w/im.width,e.h/im.height);y.drawImage(im,(e.w-im.width*k)/2,(e.h-im.height*k)/2,im.width*k,im.height*k);x.drawImage(c2,0,0)}
