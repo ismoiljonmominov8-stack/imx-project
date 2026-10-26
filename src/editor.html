@@ -225,6 +225,19 @@ en:{tagline:'Interactive presentation maker',example:'Example',save:'Save',open:
   created:'Done: {f}',saved:'Project saved',opened:'Project opened',badfile:'This is not an IMX project file',confirmEx:'Replace the current project with the example? Press again.',
   delConfirm:'Press again to delete',up:'Move up',down:'Move down',dup:'Duplicate',del:'Delete',failed:'Error: {e}',textInVideo:'In this style the text is part of the animation: it can\'t be edited in PowerPoint, but you can change it here and create the file again.'}};
 let ui='uz';
+/* labels for the Morph templates (24-33) */
+Object.assign(UI.uz,{subtitle:'Kichik sarlavha',logo:'Logotip (ixtiyoriy)',left:'Chap matn (kompaniya)',right:'O\'ng matn (taqdimotchi)',chip:'Yorliq so\'zi',line1:'1-qator',line2:'2-qator',contact1:'Aloqa 1',contact2:'Aloqa 2',
+  word:'Qadam so\'zi',steps:'Qadamlar',tipWord:'Maslahat so\'zi',tip:'Maslahat',parts:'Bo\'laklar',cards:'Kartalar',fix:'Tuzatish',fixWord:'Tuzatish sarlavhasi',tag:'Yorliq so\'zi',col1:'1-ustun',col2:'2-ustun',
+  morphNote:'Bu sahifa PowerPoint shakllaridan yasaladi va {n} ta slaydga bo\'linadi: ular orasida Morph o\'tishi ishlaydi (PowerPoint 2019 / 365; eski versiyalarda oddiy so\'nish). Matn va shakllar PowerPoint\'da tahrirlanadi. Bandlar sonini quyida o\'zgartiring.',
+  madeShapes:'Tayyor! Slide Show (F5) da sichqoncha bosilganda Morph o\'tishlari ishlaydi.'});
+Object.assign(UI.ru,{subtitle:'Подзаголовок',logo:'Логотип (необязательно)',left:'Текст слева (компания)',right:'Текст справа (докладчик)',chip:'Слово на ярлыке',line1:'Строка 1',line2:'Строка 2',contact1:'Контакты 1',contact2:'Контакты 2',
+  word:'Слово «шаг»',steps:'Шаги',tipWord:'Слово «совет»',tip:'Совет',parts:'Части',cards:'Карточки',fix:'Как исправить',fixWord:'Заголовок «исправление»',tag:'Слово на ярлыке',col1:'Колонка 1',col2:'Колонка 2',
+  morphNote:'Эта страница строится из фигур PowerPoint и делится на {n} слайд(ов) с переходом «Трансформация» (Morph, PowerPoint 2019 / 365; в старых версиях — плавное исчезание). Текст и фигуры редактируются в PowerPoint. Количество пунктов меняется ниже.',
+  madeShapes:'Готово! В режиме показа (F5) переходы Morph идут по щелчку.'});
+Object.assign(UI.en,{subtitle:'Subtitle',logo:'Logo (optional)',left:'Left text (company)',right:'Right text (presenter)',chip:'Tag word',line1:'Line 1',line2:'Line 2',contact1:'Contacts 1',contact2:'Contacts 2',
+  word:'"Step" word',steps:'Steps',tipWord:'"Tip" word',tip:'Tip',parts:'Parts',cards:'Cards',fix:'How to fix',fixWord:'"Fix" heading',tag:'Tag word',col1:'Column 1',col2:'Column 2',
+  morphNote:'This page is built from PowerPoint shapes and becomes {n} slides with Morph transitions between them (PowerPoint 2019 / 365; older versions show a fade). Text and shapes stay editable in PowerPoint. Change the number of items below.',
+  madeShapes:'Done! In Slide Show (F5) the Morph transitions play on each click.'});
 const t=(k,v)=>{let s=UI[ui][k]??UI.en[k]??k;if(v)for(const n in v)s=s.replace('{'+n+'}',v[n]);return s};
 
 /* ---------- state ---------- */
@@ -258,7 +271,7 @@ function getPath(o,path){return path.split('.').reduce((a,k)=>a==null?a:a[k],o)}
 function setPath(o,path,v){const ks=path.split('.');let a=o;ks.slice(0,-1).forEach(k=>{a=a[k]});a[ks[ks.length-1]]=v}
 function styleName(id){const st=ST.S[id];return st.name[ui]||st.name.en}
 function styleUse(id){const st=ST.S[id];return st.use[ui]||st.use.en}
-function snippet(p){const f=p.f;return f.heading||f.sentence||(f.lines&&f.lines.map(l=>l.text).join(' '))||''}
+function snippet(p){const f=p.f;return f.heading||f.title||f.word||f.sentence||(f.lines&&f.lines.map(l=>l.text).join(' '))||''}
 
 /* ---------- live preview ---------- */
 const cv=$('cv'),ctx=cv.getContext('2d');let t0=performance.now(),hold=false;
@@ -312,7 +325,8 @@ function renderSide(){const p=curPage(),side=$('side');
   side.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;renderSide()});
   $('chg').onclick=()=>openGallery(p.id);
   const form=$('form');
-  if(tab==='content'){if(st.textInVideo)form.insertAdjacentHTML('beforeend',`<p class="hint">${esc(t('textInVideo'))}</p>`);fieldsForm(form,p,st.fields,'')}
+  if(tab==='content'){if(st.textInVideo)form.insertAdjacentHTML('beforeend',`<p class="hint">${esc(t('textInVideo'))}</p>`);
+    if(st.kind==='morph')form.insertAdjacentHTML('beforeend',`<p class="hint">${esc(t('morphNote',{n:IMXMorph.slidesFor(p.style,p.f,themeFor(p)).length}))}</p>`);fieldsForm(form,p,st.fields,'')}
   else{form.insertAdjacentHTML('beforeend',`<p class="hint">${esc(t('pageHint'))}</p>`);p.ov=p.ov||{};themeForm(form,p.ov,true)}}
 
 function fieldsForm(root,p,fields,prefix){
@@ -403,7 +417,7 @@ $('createBtn').onclick=async()=>{if(!S.pages.length)return;
   $('progress').hidden=false;$('pbar').style.width='0%';$('pText').textContent='';
   try{const {blob,mode}=await IMXExport.build({pages:S.pages,themeFor,lang:S.lang,template:b64bytes(TEMPLATE_B64),title:S.title},
       p=>{$('pbar').style.width=Math.round(p.frac*100)+'%';$('pText').textContent=p.packing?t('packing'):t('slideOf',{n:p.slide,t:p.total})+' · '+(p.mode==='mp4'?'MP4':'GIF')});
-    const name=fileName('.pptx');download(name,blob);$('progress').hidden=true;toast(t('created',{f:name}));if(mode==='gif')setTimeout(()=>toast(t('madeGif')),3000)}
+    const name=fileName('.pptx');download(name,blob);$('progress').hidden=true;toast(t('created',{f:name}));if(mode==='gif')setTimeout(()=>toast(t('madeGif')),3000);if(mode==='shapes')setTimeout(()=>toast(t('madeShapes')),3000)}
   catch(e){console.error(e);$('progress').hidden=true;toast(t('failed',{e:e.message||e}))}};
 
 /* ---------- save, open, example ---------- */
@@ -412,7 +426,7 @@ $('openFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(
   try{const o=JSON.parse(await f.text());if(!o||o.imx!==2||!Array.isArray(o.pages))throw 0;load(o);toast(t('opened'))}catch(_){toast(t('badfile'))}};
 let exArm=0;
 $('exampleBtn').onclick=()=>{if(S.pages.length&&Date.now()-exArm>3000){exArm=Date.now();toast(t('confirmEx'));return}
-  const e=blank();e.title='Namuna taqdimot';e.pages=['flap','split','points','stats','puzzle','balance','spotlight','quiz','kinetic'].map(id=>({id:uid(),style:id,f:clone(ST.S[id].sample),ov:{}}));
+  const e=blank();e.title='Namuna taqdimot';e.pages=['glassTitle','split','accordion','points','stats','wheel','flipCards','quiz','contact','kinetic'].map(id=>({id:uid(),style:id,f:clone(ST.S[id].sample),ov:{}}));
   e.pages[e.pages.length-1].f.sentence='E\'tiboringiz uchun rahmat';load(e)};
 function load(o){const b=blank();S={...b,...o,theme:{...b.theme,...(o.theme||{})},images:o.images||{}};delete S.imx;
   S.pages.forEach(p=>{p.id=p.id||uid();p.ov=p.ov||{};if(!ST.S[p.style])p.style='split'});

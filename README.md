@@ -32,6 +32,23 @@ IMX builds animated presentations in the browser and saves them as **PowerPoint 
 | 22 | Kinetic Type | slogan or short sentence |
 | 23 | Split-flap Display | title, date, slogan |
 
+### Morph templates (24–33)
+
+These pages are built from real PowerPoint shapes, not video. One page becomes several slides, and PowerPoint's **Morph** transition moves the shapes between them on each click (PowerPoint 2019 / 365; older versions show a fade). Every word, shape and picture stays editable. The number of items, steps, parts and cards can be changed in IMX.
+
+| # | Template | Good for |
+|---|---|---|
+| 24 | Glass Title Card | company or topic name |
+| 25 | Accordion List | 2–6 items that open one at a time |
+| 26 | Section Divider | big picture and section name |
+| 27 | Contact / Closing Card | final page with contacts |
+| 28 | Steps Hub | 3–8 steps as colour tiles |
+| 29 | Step Photo Card | one slide per step with photo and tip |
+| 30 | Wheel | 3–8 part wheel, one detail slide per part |
+| 31 | Flip Cards | 2–6 numbered cards opening one by one |
+| 32 | Photo-in-Text Title | title letters filled with your photo |
+| 33 | Wave Photo | your photo, a wave and two text columns |
+
 Styles 1–8 (Curtain Title, Reja Hub, Open Book, Gears & Magnifier, Ball & Walls, Lego Builder, Closing Book, Particle Finale) are being rebuilt for PPTX. The old HTML version is kept in `src/legacy/`.
 
 ## What the PPTX contains
@@ -45,6 +62,7 @@ Styles 1–8 (Curtain Title, Reja Hub, Open Book, Gears & Magnifier, Ball & Wall
 ## For developers
 
 - `src/styles.js`: the page styles (background drawing and text boxes)
+- `src/morph.js`: the Morph templates 24–33 and their preview
 - `src/pptx.js`: video encoding and the PowerPoint writer
 - `src/editor.html`: the editor interface
 - `src/template/blank.pptx`: the empty 16:9 PowerPoint template

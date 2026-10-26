@@ -12,6 +12,7 @@ const libs = [
   // gifenc ships as CommonJS: give it an exports object and publish it as window.gifenc
   '(function(){var exports={};\n' + read('vendor', 'gifenc.js') + '\nwindow.gifenc=exports;})();',
   read('src', 'styles.js'),
+  read('src', 'morph.js'),
   read('src', 'pptx.js'),
 ].join('\n;\n').replace(/<\/script/gi, '<\\/script');
 const template = fs.readFileSync(path.join(__dirname, 'src', 'template', 'blank.pptx')).toString('base64');
