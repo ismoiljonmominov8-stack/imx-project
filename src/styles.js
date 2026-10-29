@@ -50,12 +50,16 @@ function panel(X,Y,w,h,{r=14,alpha=1,stroke=C.gold}={}){
   x.shadowColor='rgba(0,0,0,.55)';x.shadowBlur=30;x.shadowOffsetY=14;rr(X,Y,w,h,r);x.fillStyle=g;x.fill();
   x.shadowColor='transparent';x.lineWidth=2;x.strokeStyle=stroke;x.stroke();x.restore();
 }
-function cover(img,X,Y,w,h){const k=Math.max(w/img.width,h/img.height),iw=img.width*k,ih=img.height*k;x.drawImage(img,X+(w-iw)/2,Y+(h-ih)/2,iw,ih)}
+/* draws a picture filling the box. Each uploaded picture can carry its own settings (img._fit):
+   z = zoom %, x / y = which part stays in view (0-100 %), o = visibility %. Background pictures use bgVis instead of o. */
+function fitOf(img){const f=img&&img._fit||{};return{z:Math.max(1,(+f.z||100)/100),x:(f.x??50)/100,y:(f.y??50)/100,o:(f.o??100)/100}}
+function cover(img,X,Y,w,h,isBg){const f=fitOf(img),k=Math.max(w/img.width,h/img.height)*f.z,iw=img.width*k,ih=img.height*k;
+  const a=x.globalAlpha;if(!isBg)x.globalAlpha=a*f.o;x.drawImage(img,X+(w-iw)*f.x,Y+(h-ih)*f.y,iw,ih);x.globalAlpha=a}
 const DUST=Array.from({length:70},(_,i)=>({x:(i*397)%1600,y:(i*571)%900,r:.6+(i%5)*.35,v:.15+(i%7)*.05,a:i*1.3}));
 function bg(t,{dust=true}={}){
   const g=x.createRadialGradient(800,450,40,800,450,950);g.addColorStop(0,C.bg);g.addColorStop(.5,C.bg2);g.addColorStop(1,C.bg3);
   x.fillStyle=g;x.fillRect(0,0,W,H);
-  if(IMG.bg){x.save();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H);x.restore()}
+  if(IMG.bg){x.save();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H,true);x.restore()}
   if(dust)for(const p of DUST){const y=((p.y-t*p.v*60)%900+900)%900;
     x.fillStyle=rgba(C.hi,.2+.35*Math.abs(Math.sin(t*.7+p.a)));x.beginPath();x.arc(p.x+Math.sin(t+p.a)*6,y,p.r,0,7);x.fill()}
 }
@@ -90,7 +94,8 @@ S.split={n:9,name:{uz:'Ikki tomon',ru:'Разделённый экран',en:'Sp
   sample:{heading:'Kirish',text:'Bu yerda sahifaning asosiy matni joylashadi. Fikringizni qisqa va aniq yozing.\nIkkinchi xatboshi ham shu yerda.'},
   draw(t,f){bg(t);const a=eio(seg(t,.2,1.1)),b=eio(seg(t,.35,1.25));
     x.save();x.translate(0,lerp(-H,0,a));x.beginPath();x.moveTo(0,0);x.lineTo(900,0);x.lineTo(740,H);x.lineTo(0,H);x.closePath();
-    const g=x.createLinearGradient(0,0,900,H);g.addColorStop(0,C.panelA);g.addColorStop(1,C.panelB);x.fillStyle=g;x.fill();x.restore();
+    const g=x.createLinearGradient(0,0,900,H);g.addColorStop(0,C.panelA);g.addColorStop(1,C.panelB);x.fillStyle=g;x.fill();
+    if(IMG.bg){x.clip();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H,true)}x.restore();
     x.save();x.translate(0,lerp(H,0,b));x.beginPath();x.moveTo(900,0);x.lineTo(W,0);x.lineTo(W,H);x.lineTo(740,H);x.closePath();x.clip();
     const z=1.12-.12*eo(seg(t,1,6));x.translate(1170,450);x.scale(z,z);x.translate(-1170,-450);picture(700,0,900,H,2,IMG[f.img]);x.restore();
     const d=eo(seg(t,1.2,1.8));x.strokeStyle=C.hi;x.lineWidth=6;x.beginPath();x.moveTo(900,0);x.lineTo(lerp(900,740,d),H*d);x.stroke();
@@ -229,7 +234,7 @@ S.blinds={n:16,name:{uz:'Jalyuzi',ru:'Жалюзи',en:'Window Blinds'},use:{uz:
   sample:{heading:'Sarlavha',text:'Rasm izohi shu yerda'},
   draw(t,f){x.fillStyle=C.bg3;x.fillRect(0,0,W,H);picture(0,0,W,H,1,IMG[f.img]);x.fillStyle='rgba(0,0,0,.18)';x.fillRect(0,0,W,H);
     const n=12,sh=H/n;for(let i=0;i<n;i++){const a=.5+i*.08,p=eio(seg(t,a,a+.8)),hh=sh*(1-p);if(hh<.5)continue;const yc=i*sh+sh/2;
-      const g=x.createLinearGradient(0,yc-hh/2,0,yc+hh/2);g.addColorStop(0,C.panelA);g.addColorStop(.5,C.bg);g.addColorStop(1,C.bg3);x.fillStyle=g;x.fillRect(0,yc-hh/2,W,hh);
+      const g=x.createLinearGradient(0,yc-hh/2,0,yc+hh/2);g.addColorStop(0,C.panelA);g.addColorStop(.5,C.bg);g.addColorStop(1,C.bg3);x.fillStyle=g;x.fillRect(0,yc-hh/2,W,hh);if(IMG.bg){x.save();x.beginPath();x.rect(0,yc-hh/2,W,hh);x.clip();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H,true);x.restore()}
       x.fillStyle=rgba(C.gold,.6*(1-p));x.fillRect(0,yc+hh/2-2,W,2)}
     const cp=1-seg(t,.4,1.3);if(cp>0){x.strokeStyle=rgba(C.hi,cp);x.lineWidth=3;[400,1200].forEach(cx=>{x.beginPath();x.moveTo(cx,0);x.lineTo(cx,H);x.stroke()})}
     const q=eo(seg(t,2,2.7));if(q>0){x.save();x.globalAlpha=q;const g=x.createLinearGradient(0,580,0,H);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,rgba(C.bg3,.93));x.fillStyle=g;x.fillRect(0,560,W,340);
@@ -242,7 +247,7 @@ function spotX(n){return Array.from({length:n},(_,i)=>800+(i-(n-1)/2)*Math.min(4
 S.spotlight={n:17,name:{uz:'Sahna nuri',ru:'Прожектор',en:'Spotlight Stage'},use:{uz:'jamoa, mutaxassislar',ru:'команда, эксперты',en:'team, people, experts'},dur:4,
   fields:[{k:'heading',t:'text'},{k:'people',t:'list',min:1,max:4,of:[{k:'img',t:'img'},{k:'name',t:'text'},{k:'role',t:'text'}]}],
   sample:{heading:'Jamoa',people:[{name:'Ism Familiya',role:'Lavozim'},{name:'Ism Familiya',role:'Lavozim'},{name:'Ism Familiya',role:'Lavozim'}]},
-  draw(t,f,m){x.fillStyle=C.bg3;x.fillRect(0,0,W,H);if(IMG.bg){x.save();x.globalAlpha=IMG.vis*.6;cover(IMG.bg,0,0,W,H);x.restore()}
+  draw(t,f,m){x.fillStyle=C.bg3;x.fillRect(0,0,W,H);if(IMG.bg){x.save();x.globalAlpha=IMG.vis*.6;cover(IMG.bg,0,0,W,H,true);x.restore()}
     const fg=x.createLinearGradient(0,620,0,H);fg.addColorStop(0,C.bg2);fg.addColorStop(1,C.bg3);x.fillStyle=fg;x.fillRect(0,640,W,260);
     const pp=f.people||[],X=spotX(clamp(pp.length,1,4));
     X.forEach((cx,i)=>{const a=.5+i*.7,on=seg(t,a,a+.15),fl=on<1?(Math.sin(t*80)>0?.4:0):1,L=on*fl;
@@ -317,7 +322,7 @@ S.quiz={n:20,name:{uz:'Savol kartalari',ru:'Карточки-викторина'
 function glassBg(t){x.fillStyle=C.bg3;x.fillRect(0,0,W,H);x.save();x.filter='blur(60px)';
   const cols=[C.gold,mix(C.bg,'#5a7bd8',.6),mix(C.gold,'#b0508a',.6),mix(C.bg,'#2fa3a0',.6),mix(C.gold,'#e08a3a',.4)];
   [[300,250,260],[1250,220,300],[900,700,320],[200,750,220],[1400,720,240]].forEach(([bx,by,r],i)=>{x.fillStyle=cols[i];x.globalAlpha=.8;x.beginPath();x.arc(bx+Math.sin(t*.6+i)*80,by+Math.cos(t*.5+i*2)*60,r,0,7);x.fill()});x.restore();
-  if(IMG.bg){x.save();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H);x.restore()}}
+  if(IMG.bg){x.save();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H,true);x.restore()}}
 function glassCard(X,Y,w,h,t,alpha=1){x.save();x.globalAlpha=alpha;rr(X,Y,w,h,28);x.clip();x.filter='blur(24px)';glassBg(t);x.filter='none';
   x.fillStyle='rgba(255,255,255,.12)';x.fillRect(X,Y,w,h);const sh=x.createLinearGradient(X,Y,X+w,Y+h);sh.addColorStop(0,'rgba(255,255,255,.22)');sh.addColorStop(.5,'rgba(255,255,255,0)');x.fillStyle=sh;x.fillRect(X,Y,w,h);x.restore();
   x.save();x.globalAlpha=alpha;rr(X,Y,w,h,28);x.lineWidth=2;x.strokeStyle='rgba(255,255,255,.45)';x.stroke();x.restore()}

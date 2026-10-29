@@ -75,7 +75,7 @@ M.divider={n:26,group:'dark',name:SAY('Bo\'lim ajratgichi','Разделител
     anims:[{n:'h',k:'rise',d:0,u:.7},{n:'co',k:'fade',d:.4,u:.5},{n:'who',k:'fade',d:.5,u:.5}]}]}};
 
 /* 25 Accordion List */
-M.accordion={n:25,group:'dark',name:SAY('Ochiluvchi ro\'yxat','Раскрывающийся список','Accordion List'),use:SAY('bandlar birma-bir ochiladi, rasm va raqam o\'zgaradi','пункты раскрываются по очереди','items open one at a time'),
+M.accordion={n:25,focus:i=>i,group:'dark',name:SAY('Ochiluvchi ro\'yxat','Раскрывающийся список','Accordion List'),use:SAY('bandlar birma-bir ochiladi, rasm va raqam o\'zgaradi','пункты раскрываются по очереди','items open one at a time'),
   fields:[{k:'heading',t:'text'},{k:'items',t:'list',min:2,max:6,of:[{k:'title',t:'text'},{k:'text',t:'area'},{k:'value',t:'text'},{k:'label',t:'text'},{k:'img',t:'img'}]}],
   sample:{heading:'Mundarija',items:[{title:'Kompaniya haqida',text:'Biz kimmiz va qanday ishlaymiz — qisqa tanishtiruv.',value:'12 yil',label:'bozorda tajriba'},
     {title:'Mijoz vazifasi',text:'Daromad bozordan sekin o\'smoqda, qarorlar esa ma\'lumotga emas, his-tuyg\'uga asoslanadi.',value:'3 / 4',label:'mijozlar shu bosqichdan o\'tadi'},
@@ -111,7 +111,7 @@ function badgeNum(c,cx,cy,size,num,word){return[box('badge',cx-size/2,cy-size/2,
   text('bn',cx-size/2,cy-size*.25,size,size*.6,num,Math.max(1,size*.42),'#ffffff',{b:1,al:'c',va:'m'})]}
 
 /* 28 Steps Hub */
-M.stepsHub={n:28,group:'light',name:SAY('Qadamlar markazi','Центр шагов','Steps Hub'),use:SAY('3–8 qadam rangli plitkalarda','3–8 шагов цветными плитками','3–8 steps as colour tiles'),
+M.stepsHub={n:28,focus:(i,n)=>n-1,group:'light',name:SAY('Qadamlar markazi','Центр шагов','Steps Hub'),use:SAY('3–8 qadam rangli plitkalarda','3–8 шагов цветными плитками','3–8 steps as colour tiles'),
   fields:[{k:'title',t:'text'},{k:'word',t:'text'},{k:'steps',t:'list',min:3,max:8,of:[{k:'name',t:'text'}]}],
   sample:{title:'Taqdimot yaratishning 6 qadami',word:'QADAM',steps:['G\'oya','Tuzilma','Dizayn','Vizual','Mashq','Chiqish'].map(name=>({name}))},
   build(f,P){const c=P.c,st=f.steps||[],n=st.length,num=String(n),slides=[];
@@ -135,7 +135,7 @@ M.stepsHub={n:28,group:'light',name:SAY('Qadamlar markazi','Центр шаго�
     slides.push({bg:c.frame,els,anims:an,dur:1.4});return slides}};
 
 /* 29 Step Photo Card */
-M.stepPhoto={n:29,group:'light',name:SAY('Qadam rasm kartasi','Шаг с фото','Step Photo Card'),use:SAY('har bir qadam: rasm, matn, maslahat','каждый шаг: фото, текст, совет','each step: photo, text, tip'),
+M.stepPhoto={n:29,focus:i=>i,group:'light',name:SAY('Qadam rasm kartasi','Шаг с фото','Step Photo Card'),use:SAY('har bir qadam: rasm, matn, maslahat','каждый шаг: фото, текст, совет','each step: photo, text, tip'),
   fields:[{k:'word',t:'text'},{k:'tipWord',t:'text'},{k:'steps',t:'list',min:1,max:8,of:[{k:'title',t:'text'},{k:'text',t:'area'},{k:'tip',t:'area'},{k:'img',t:'img'}]}],
   sample:{word:'QADAM',tipWord:'MASLAHAT',steps:[{title:'Mashq',text:'Chiqishni ovoz chiqarib uch marta takrorlang: taymer bilan, kameraga va do\'stlar oldida.',tip:'Har bir slaydga bitta asosiy fikr — ortiqchasini olib tashlang.'},
     {title:'Chiqish',text:'Tinglovchilar bilan ko\'z aloqasini saqlang va asosiy fikrni oxirida yana takrorlang.',tip:'Oxirgi slayd — «rahmat» emas, keyingi qadam bo\'lsin.'}]},
@@ -158,7 +158,7 @@ function wheelEls(c,parts,word,cx,cy,R,{explode=0,pull=null,dim=false}={}){const
     els.push(text('sn'+i,mx-R*.3,my-18,R*.6,36,explode?'':parts[i].name,Math.max(11,Math.min(16,R/19)),'#ffffff',{b:1,al:'c',va:'m'}))}
   const r=R*.29;els.push(oval('badge',cx-r,cy-r,2*r,2*r,c.navy,{line:'#ffffff',lw:6}),text('bsub',cx-r,cy-r*.62,2*r,r*.3,word,Math.max(7,r/9),c.onNavy,{al:'c',va:'m',sp:1}),
     text('bn',cx-r,cy-r*.42,2*r,r*1.1,String(n),r*.62,'#ffffff',{b:1,al:'c',va:'m'}));return els}
-M.wheel={n:30,group:'light',name:SAY('G\'ildirak','Колесо','Wheel'),use:SAY('3–8 bo\'lakli doira, har biri batafsil','круг из 3–8 частей с пояснениями','3–8 part wheel with details'),
+M.wheel={n:30,focus:i=>i+2,group:'light',name:SAY('G\'ildirak','Колесо','Wheel'),use:SAY('3–8 bo\'lakli doira, har biri batafsil','круг из 3–8 частей с пояснениями','3–8 part wheel with details'),
   fields:[{k:'title',t:'text'},{k:'word',t:'text'},{k:'parts',t:'list',min:3,max:8,of:[{k:'name',t:'text'},{k:'text',t:'area'}]}],
   sample:{title:'Taqdimot yaratishning 6 qadami',word:'QADAM',parts:[['G\'oya','Mavzuni tanlang va tinglovchiga qanday foyda berishini bir jumlada yozing.'],['Tuzilma','Kirish, asosiy qism va xulosani rejalang: har biriga 2–3 slayd.'],
     ['Dizayn','Bitta rang mavzusi va ikki shrift tanlang.'],['Vizual','Matnni rasm, sxema va raqamlar bilan almashtiring.'],['Mashq','Chiqishni ovoz chiqarib uch marta takrorlang.'],['Chiqish','Asosiy fikrni oxirida yana takrorlang.']].map(([name,text])=>({name,text}))},
@@ -171,7 +171,7 @@ M.wheel={n:30,group:'light',name:SAY('G\'ildirak','Колесо','Wheel'),use:SA
     return slides}};
 
 /* 31 Flip Cards */
-M.flipCards={n:31,group:'light',name:SAY('Ochiluvchi kartalar','Открывающиеся карточки','Flip Cards'),use:SAY('raqamli kartalar birma-bir ochiladi','нумерованные карточки открываются по очереди','numbered cards open one by one'),
+M.flipCards={n:31,focus:i=>i+1,group:'light',name:SAY('Ochiluvchi kartalar','Открывающиеся карточки','Flip Cards'),use:SAY('raqamli kartalar birma-bir ochiladi','нумерованные карточки открываются по очереди','numbered cards open one by one'),
   fields:[{k:'title',t:'text'},{k:'tag',t:'text'},{k:'fixWord',t:'text'},{k:'cards',t:'list',min:2,max:6,of:[{k:'label',t:'text'},{k:'title',t:'text'},{k:'text',t:'area'},{k:'fix',t:'area'}]}],
   sample:{title:'Taqdimotdagi 5 ta xato',tag:'XATO',fixWord:'QANDAY TUZATISH',cards:[['Ko\'p matn','Juda ko\'p matn','Slaydda matn ko\'p bo\'lsa, tinglovchi o\'qiydi, sizni esa eshitmaydi.','Bitta slayd — bitta fikr, 6 qatordan oshmasin.'],
     ['Mayda shrift','Mayda shrift','Orqa qatordagilar 18 pt dan kichik matnni o\'qiy olmaydi.','Matn kamida 24 pt, sarlavha 36 pt.'],['Xulosa yo\'q','Xulosa yo\'q','Tinglovchi «rahmat» bilan emas, aniq harakat bilan ketishi kerak.','Oxirgi slaydda — keyingi qadam.'],
@@ -206,10 +206,16 @@ M.wavePhoto={n:33,group:'photo',name:SAY('To\'lqinli rasm','Фото с волн
 const ORDER=['glassTitle','divider','accordion','contact','stepsHub','stepPhoto','wheel','flipCards','photoTitle','wavePhoto'];
 
 /* ---------- building slides for a page ---------- */
+const BASE=new Set(['sheet','panel','plate']);
 function slidesFor(id,f,T){const P={c:palette(T)[M[id].group],logo:null};const out=M[id].build(f,P)||[];
-  return out.map(s=>({...s,els:s.els.map(e=>({...e}))}))}
+  return out.map(s=>{const els=s.els.map(e=>({...e}));
+    /* the deck / page background picture sits on the base layer, under cards and text */
+    if(T.bgImgId&&T.images&&T.images[T.bgImgId]&&T.bgVis>0){let k=-1;els.forEach((e,i)=>{if(BASE.has(e.n))k=i});
+      els.splice(k+1,0,{n:'bgimg',t:'pic',img:T.bgImgId,x:0,y:0,w:1600,h:900,a:T.bgVis,bg:true})}
+    return{...s,els}})}
 
 /* ---------- drawing (preview) ---------- */
+function fitOf(img){const f=img&&img._fit||{};return{z:Math.max(1,(+f.z||100)/100),x:(f.x??50)/100,y:(f.y??50)/100,o:(f.o??100)/100}}
 const PX=1/0.6;   /* 1 pt = 1/0.6 design pixels on a 1600-wide slide */
 function imgFor(key,T){if(!key)return null;if(T.images&&T.images[key])return T.images[key];
   if(/^(ribbon|soft|photo):/.test(key))return genImage(key,T.accent);return null}
@@ -225,7 +231,7 @@ function shapePath(x,e){const{w,h}=e;x.beginPath();
 function drawEl(x,e,T,alpha=1,mult=1){if(alpha<=0.003||e.w<.5&&e.h<.5)return;x.save();x.globalAlpha=alpha*(e.t==='pic'||e.t==='text'?1:(e.a??1));
   x.translate(e.x+e.w/2,e.y+e.h/2);if(e.rot)x.rotate(e.rot*Math.PI/180);if(e.sc&&e.sc!==1)x.scale(e.sc,e.sc);x.translate(-e.w/2,-e.h/2);
   if(e.t==='pic'){const im=imgFor(e.img,T);x.globalAlpha=alpha*(e.a??1);x.beginPath();x.roundRect(0,0,e.w,e.h,Math.min(e.w,e.h)*(e.r||0));x.clip();
-    if(im){const k=Math.max(e.w/im.width,e.h/im.height);x.drawImage(im,(e.w-im.width*k)/2,(e.h-im.height*k)/2,im.width*k,im.height*k)}else{x.fillStyle='#334';x.fillRect(0,0,e.w,e.h)}}
+    if(im){const f=fitOf(im),k=Math.max(e.w/im.width,e.h/im.height)*f.z;if(!e.bg)x.globalAlpha*=f.o;x.drawImage(im,(e.w-im.width*k)*f.x,(e.h-im.height*k)*f.y,im.width*k,im.height*k)}else{x.fillStyle='#334';x.fillRect(0,0,e.w,e.h)}}
   else if(e.t==='text'){if(e.tx){const size=e.sz*PX*mult;x.font=`${e.b?700:400} ${size}px ${fontOf(e,T)}`;if('letterSpacing' in x)x.letterSpacing=((e.sp||0)*PX)+'px';
     const lines=wrap(x,e.tx,e.w+2),lh=size*1.2*(e.lh||1),bh=lines.length*lh,y0=e.va==='m'?(e.h-bh)/2:e.va==='b'?e.h-bh:0;
     const paint=ctx=>{ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.direction='ltr';lines.forEach((ln,i)=>{const lw=ctx.measureText(ln).width,X=e.al==='c'?(e.w-lw)/2:e.al==='r'?e.w-lw:0;ctx.fillText(ln,X,y0+i*lh+size*.95)})};
@@ -260,6 +266,9 @@ function timeline(slides){let t=0;return slides.map(s=>{const d=s.dur||TRANS,seg
 function render(ctx,id,f,t,T){const slides=slidesFor(id,f,T),tl=timeline(slides),mult=ST.SIZES[T.size]||1;const total=tl.length?tl[tl.length-1].end:1;
   let i=tl.findIndex(g=>t<g.end);if(i<0)i=tl.length-1;const g=tl[i],lt=t-g.start;
   if(lt<g.trans)drawTransition(ctx,i?tl[i-1].s:null,g.s,T,lt/g.trans,mult);else drawSlide(ctx,g.s,T,lt-g.trans,mult);return total}
+/* the moment of the page timeline where slide k is fully shown (used while editing item k) */
+function timeAtSlide(id,f,T,item){const tl=timeline(slidesFor(id,f,T));if(!tl.length)return 0;const m=M[id].focus;
+  const k=Math.max(0,Math.min(tl.length-1,m?m(item,tl.length):tl.length-1)),g=tl[k];return g.start+g.trans+g.anim+.5}
 function durOf(id,f,T){const tl=timeline(slidesFor(id,f,T));return tl.length?tl[tl.length-1].end:1}
 
 /* ---------- join the page-style list used by the editor and the exporter ---------- */
@@ -270,5 +279,5 @@ ORDER.forEach(id=>{ST.S[id]={...M[id],id,kind:'morph',dur:0,durFor:f=>durOf(id,f
 const baseRender=ST.render;
 ST.render=function(ctx,id,f,t,T,o){if(ST.S[id]&&ST.S[id].kind==='morph'){ctx.save();render(ctx,id,f,t,T);ctx.restore();return}return baseRender(ctx,id,f,t,T,o)};
 
-window.IMXMorph={M,ORDER,TILE,slidesFor,render,durOf,genImage,imgFor,palette,PX};
+window.IMXMorph={fitOf,timeAtSlide,M,ORDER,TILE,slidesFor,render,durOf,genImage,imgFor,palette,PX};
 })();

@@ -10,6 +10,8 @@ IMX builds animated presentations in the browser and saves them as **PowerPoint 
 4. Open **Dizayn / Design** to choose a colour theme, fonts, text size, text animation and background image for the whole deck. The **Ko'rinish / Look** tab changes these for one page only.
 5. Press **YARATISH · PPTX / CREATE · PPTX**. The file downloads to your Downloads folder.
 
+**Pictures:** after you upload a picture, sliders appear under it: **Visibility**, **Zoom**, **Left ↔ right** and **Up ↕ down**, so you can choose how much of it shows and which part stays in view. The background picture (Design → background image) has its own visibility slider and now shows on every page style, including the Morph templates. Pictures are kept in the browser (IndexedDB), so a big project survives a page reload.
+
 **Save** keeps a `.imx.json` project you can **Open** later to keep editing.
 
 ## Page styles

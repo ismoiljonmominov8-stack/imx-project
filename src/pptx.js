@@ -109,9 +109,12 @@ function geomXML(e){
 function morphShapeXML(e,id,T,lang,rel,mult){
   const nv=`<p:cNvPr id="${id}" name="!!${esc(e.n)}"/>`;
   if(e.t==='pic'){const im=rel(e.img,e.n==='logo');if(!im)return'';
-    const tr=e.w/e.h,ir=im.w/im.h;let l=0,t=0;if(ir>tr)l=(1-tr/ir)/2;else t=(1-ir/tr)/2;
+    const src=window.IMXMorph.imgFor(e.img,T),f=window.IMXMorph.fitOf(src);
+    /* visible part of the picture: cover-fit, then zoom, then shift toward the chosen point */
+    const tr=e.w/e.h,ir=im.w/im.h;let vw=1,vh=1;if(ir>tr)vw=tr/ir;else vh=ir/tr;vw/=f.z;vh/=f.z;
+    const l=(1-vw)*f.x,r=(1-vw)*(1-f.x),t=(1-vh)*f.y,b=(1-vh)*(1-f.y),alpha=(e.a??1)*(e.bg?1:f.o);
     const geo=e.r?`<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.round(Math.min(.5,e.r)*100000)}"/></a:avLst></a:prstGeom>`:'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
-    return`<p:pic><p:nvPicPr>${nv}<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}">${e.a!=null&&e.a<1?`<a:alphaModFix amt="${Math.round(clampA(e.a)*100000)}"/>`:''}</a:blip><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(l*100000)}" b="${Math.round(t*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
+    return`<p:pic><p:nvPicPr>${nv}<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}">${alpha<1?`<a:alphaModFix amt="${Math.round(clampA(alpha)*100000)}"/>`:''}</a:blip><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(r*100000)}" b="${Math.round(b*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
   if(e.t==='text'){const sz=Math.max(100,Math.round(e.sz*mult*100)),algn={l:'l',c:'ctr',r:'r'}[e.al||'l'],anchor={t:'t',m:'ctr',b:'b'}[e.va||'t'];
     const face=esc(e.font==='head'?(T.headFont||'Georgia'):(T.bodyFont||'Calibri'));
     let fill=fillXML(e.col);if(e.fillImg){const im=rel(e.fillImg);if(im)fill=`<a:blipFill dpi="0" rotWithShape="1"><a:blip r:embed="${im.rid}"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>`}

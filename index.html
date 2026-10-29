@@ -96,6 +96,8 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 .media{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .thumb{position:relative;width:72px;height:48px;border-radius:6px;overflow:hidden;border:1px solid var(--gold-lo);background:var(--ink)}
 .thumb img{width:100%;height:100%;object-fit:cover}
+.imgctl{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:8px;border:1px dashed var(--line);border-radius:8px}
+.imgctl .f span{font-size:11px}.imgctl .btn{grid-column:1/-1;justify-self:start}
 .thumb button{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(0,0,0,.75);color:#fff;font-size:11px;padding:0}
 .presets{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .preset{border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--ink);display:flex;flex-direction:column;gap:5px;align-items:center;font-size:11px;color:var(--muted)}
@@ -2941,12 +2943,16 @@ function panel(X,Y,w,h,{r=14,alpha=1,stroke=C.gold}={}){
   x.shadowColor='rgba(0,0,0,.55)';x.shadowBlur=30;x.shadowOffsetY=14;rr(X,Y,w,h,r);x.fillStyle=g;x.fill();
   x.shadowColor='transparent';x.lineWidth=2;x.strokeStyle=stroke;x.stroke();x.restore();
 }
-function cover(img,X,Y,w,h){const k=Math.max(w/img.width,h/img.height),iw=img.width*k,ih=img.height*k;x.drawImage(img,X+(w-iw)/2,Y+(h-ih)/2,iw,ih)}
+/* draws a picture filling the box. Each uploaded picture can carry its own settings (img._fit):
+   z = zoom %, x / y = which part stays in view (0-100 %), o = visibility %. Background pictures use bgVis instead of o. */
+function fitOf(img){const f=img&&img._fit||{};return{z:Math.max(1,(+f.z||100)/100),x:(f.x??50)/100,y:(f.y??50)/100,o:(f.o??100)/100}}
+function cover(img,X,Y,w,h,isBg){const f=fitOf(img),k=Math.max(w/img.width,h/img.height)*f.z,iw=img.width*k,ih=img.height*k;
+  const a=x.globalAlpha;if(!isBg)x.globalAlpha=a*f.o;x.drawImage(img,X+(w-iw)*f.x,Y+(h-ih)*f.y,iw,ih);x.globalAlpha=a}
 const DUST=Array.from({length:70},(_,i)=>({x:(i*397)%1600,y:(i*571)%900,r:.6+(i%5)*.35,v:.15+(i%7)*.05,a:i*1.3}));
 function bg(t,{dust=true}={}){
   const g=x.createRadialGradient(800,450,40,800,450,950);g.addColorStop(0,C.bg);g.addColorStop(.5,C.bg2);g.addColorStop(1,C.bg3);
   x.fillStyle=g;x.fillRect(0,0,W,H);
-  if(IMG.bg){x.save();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H);x.restore()}
+  if(IMG.bg){x.save();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H,true);x.restore()}
   if(dust)for(const p of DUST){const y=((p.y-t*p.v*60)%900+900)%900;
     x.fillStyle=rgba(C.hi,.2+.35*Math.abs(Math.sin(t*.7+p.a)));x.beginPath();x.arc(p.x+Math.sin(t+p.a)*6,y,p.r,0,7);x.fill()}
 }
@@ -2981,7 +2987,8 @@ S.split={n:9,name:{uz:'Ikki tomon',ru:'Разделённый экран',en:'Sp
   sample:{heading:'Kirish',text:'Bu yerda sahifaning asosiy matni joylashadi. Fikringizni qisqa va aniq yozing.\nIkkinchi xatboshi ham shu yerda.'},
   draw(t,f){bg(t);const a=eio(seg(t,.2,1.1)),b=eio(seg(t,.35,1.25));
     x.save();x.translate(0,lerp(-H,0,a));x.beginPath();x.moveTo(0,0);x.lineTo(900,0);x.lineTo(740,H);x.lineTo(0,H);x.closePath();
-    const g=x.createLinearGradient(0,0,900,H);g.addColorStop(0,C.panelA);g.addColorStop(1,C.panelB);x.fillStyle=g;x.fill();x.restore();
+    const g=x.createLinearGradient(0,0,900,H);g.addColorStop(0,C.panelA);g.addColorStop(1,C.panelB);x.fillStyle=g;x.fill();
+    if(IMG.bg){x.clip();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H,true)}x.restore();
     x.save();x.translate(0,lerp(H,0,b));x.beginPath();x.moveTo(900,0);x.lineTo(W,0);x.lineTo(W,H);x.lineTo(740,H);x.closePath();x.clip();
     const z=1.12-.12*eo(seg(t,1,6));x.translate(1170,450);x.scale(z,z);x.translate(-1170,-450);picture(700,0,900,H,2,IMG[f.img]);x.restore();
     const d=eo(seg(t,1.2,1.8));x.strokeStyle=C.hi;x.lineWidth=6;x.beginPath();x.moveTo(900,0);x.lineTo(lerp(900,740,d),H*d);x.stroke();
@@ -3120,7 +3127,7 @@ S.blinds={n:16,name:{uz:'Jalyuzi',ru:'Жалюзи',en:'Window Blinds'},use:{uz:
   sample:{heading:'Sarlavha',text:'Rasm izohi shu yerda'},
   draw(t,f){x.fillStyle=C.bg3;x.fillRect(0,0,W,H);picture(0,0,W,H,1,IMG[f.img]);x.fillStyle='rgba(0,0,0,.18)';x.fillRect(0,0,W,H);
     const n=12,sh=H/n;for(let i=0;i<n;i++){const a=.5+i*.08,p=eio(seg(t,a,a+.8)),hh=sh*(1-p);if(hh<.5)continue;const yc=i*sh+sh/2;
-      const g=x.createLinearGradient(0,yc-hh/2,0,yc+hh/2);g.addColorStop(0,C.panelA);g.addColorStop(.5,C.bg);g.addColorStop(1,C.bg3);x.fillStyle=g;x.fillRect(0,yc-hh/2,W,hh);
+      const g=x.createLinearGradient(0,yc-hh/2,0,yc+hh/2);g.addColorStop(0,C.panelA);g.addColorStop(.5,C.bg);g.addColorStop(1,C.bg3);x.fillStyle=g;x.fillRect(0,yc-hh/2,W,hh);if(IMG.bg){x.save();x.beginPath();x.rect(0,yc-hh/2,W,hh);x.clip();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H,true);x.restore()}
       x.fillStyle=rgba(C.gold,.6*(1-p));x.fillRect(0,yc+hh/2-2,W,2)}
     const cp=1-seg(t,.4,1.3);if(cp>0){x.strokeStyle=rgba(C.hi,cp);x.lineWidth=3;[400,1200].forEach(cx=>{x.beginPath();x.moveTo(cx,0);x.lineTo(cx,H);x.stroke()})}
     const q=eo(seg(t,2,2.7));if(q>0){x.save();x.globalAlpha=q;const g=x.createLinearGradient(0,580,0,H);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,rgba(C.bg3,.93));x.fillStyle=g;x.fillRect(0,560,W,340);
@@ -3133,7 +3140,7 @@ function spotX(n){return Array.from({length:n},(_,i)=>800+(i-(n-1)/2)*Math.min(4
 S.spotlight={n:17,name:{uz:'Sahna nuri',ru:'Прожектор',en:'Spotlight Stage'},use:{uz:'jamoa, mutaxassislar',ru:'команда, эксперты',en:'team, people, experts'},dur:4,
   fields:[{k:'heading',t:'text'},{k:'people',t:'list',min:1,max:4,of:[{k:'img',t:'img'},{k:'name',t:'text'},{k:'role',t:'text'}]}],
   sample:{heading:'Jamoa',people:[{name:'Ism Familiya',role:'Lavozim'},{name:'Ism Familiya',role:'Lavozim'},{name:'Ism Familiya',role:'Lavozim'}]},
-  draw(t,f,m){x.fillStyle=C.bg3;x.fillRect(0,0,W,H);if(IMG.bg){x.save();x.globalAlpha=IMG.vis*.6;cover(IMG.bg,0,0,W,H);x.restore()}
+  draw(t,f,m){x.fillStyle=C.bg3;x.fillRect(0,0,W,H);if(IMG.bg){x.save();x.globalAlpha=IMG.vis*.6;cover(IMG.bg,0,0,W,H,true);x.restore()}
     const fg=x.createLinearGradient(0,620,0,H);fg.addColorStop(0,C.bg2);fg.addColorStop(1,C.bg3);x.fillStyle=fg;x.fillRect(0,640,W,260);
     const pp=f.people||[],X=spotX(clamp(pp.length,1,4));
     X.forEach((cx,i)=>{const a=.5+i*.7,on=seg(t,a,a+.15),fl=on<1?(Math.sin(t*80)>0?.4:0):1,L=on*fl;
@@ -3208,7 +3215,7 @@ S.quiz={n:20,name:{uz:'Savol kartalari',ru:'Карточки-викторина'
 function glassBg(t){x.fillStyle=C.bg3;x.fillRect(0,0,W,H);x.save();x.filter='blur(60px)';
   const cols=[C.gold,mix(C.bg,'#5a7bd8',.6),mix(C.gold,'#b0508a',.6),mix(C.bg,'#2fa3a0',.6),mix(C.gold,'#e08a3a',.4)];
   [[300,250,260],[1250,220,300],[900,700,320],[200,750,220],[1400,720,240]].forEach(([bx,by,r],i)=>{x.fillStyle=cols[i];x.globalAlpha=.8;x.beginPath();x.arc(bx+Math.sin(t*.6+i)*80,by+Math.cos(t*.5+i*2)*60,r,0,7);x.fill()});x.restore();
-  if(IMG.bg){x.save();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H);x.restore()}}
+  if(IMG.bg){x.save();x.globalAlpha=IMG.vis;cover(IMG.bg,0,0,W,H,true);x.restore()}}
 function glassCard(X,Y,w,h,t,alpha=1){x.save();x.globalAlpha=alpha;rr(X,Y,w,h,28);x.clip();x.filter='blur(24px)';glassBg(t);x.filter='none';
   x.fillStyle='rgba(255,255,255,.12)';x.fillRect(X,Y,w,h);const sh=x.createLinearGradient(X,Y,X+w,Y+h);sh.addColorStop(0,'rgba(255,255,255,.22)');sh.addColorStop(.5,'rgba(255,255,255,0)');x.fillStyle=sh;x.fillRect(X,Y,w,h);x.restore();
   x.save();x.globalAlpha=alpha;rr(X,Y,w,h,28);x.lineWidth=2;x.strokeStyle='rgba(255,255,255,.45)';x.stroke();x.restore()}
@@ -3389,7 +3396,7 @@ M.divider={n:26,group:'dark',name:SAY('Bo\'lim ajratgichi','Разделител
     anims:[{n:'h',k:'rise',d:0,u:.7},{n:'co',k:'fade',d:.4,u:.5},{n:'who',k:'fade',d:.5,u:.5}]}]}};
 
 /* 25 Accordion List */
-M.accordion={n:25,group:'dark',name:SAY('Ochiluvchi ro\'yxat','Раскрывающийся список','Accordion List'),use:SAY('bandlar birma-bir ochiladi, rasm va raqam o\'zgaradi','пункты раскрываются по очереди','items open one at a time'),
+M.accordion={n:25,focus:i=>i,group:'dark',name:SAY('Ochiluvchi ro\'yxat','Раскрывающийся список','Accordion List'),use:SAY('bandlar birma-bir ochiladi, rasm va raqam o\'zgaradi','пункты раскрываются по очереди','items open one at a time'),
   fields:[{k:'heading',t:'text'},{k:'items',t:'list',min:2,max:6,of:[{k:'title',t:'text'},{k:'text',t:'area'},{k:'value',t:'text'},{k:'label',t:'text'},{k:'img',t:'img'}]}],
   sample:{heading:'Mundarija',items:[{title:'Kompaniya haqida',text:'Biz kimmiz va qanday ishlaymiz — qisqa tanishtiruv.',value:'12 yil',label:'bozorda tajriba'},
     {title:'Mijoz vazifasi',text:'Daromad bozordan sekin o\'smoqda, qarorlar esa ma\'lumotga emas, his-tuyg\'uga asoslanadi.',value:'3 / 4',label:'mijozlar shu bosqichdan o\'tadi'},
@@ -3425,7 +3432,7 @@ function badgeNum(c,cx,cy,size,num,word){return[box('badge',cx-size/2,cy-size/2,
   text('bn',cx-size/2,cy-size*.25,size,size*.6,num,Math.max(1,size*.42),'#ffffff',{b:1,al:'c',va:'m'})]}
 
 /* 28 Steps Hub */
-M.stepsHub={n:28,group:'light',name:SAY('Qadamlar markazi','Центр шагов','Steps Hub'),use:SAY('3–8 qadam rangli plitkalarda','3–8 шагов цветными плитками','3–8 steps as colour tiles'),
+M.stepsHub={n:28,focus:(i,n)=>n-1,group:'light',name:SAY('Qadamlar markazi','Центр шагов','Steps Hub'),use:SAY('3–8 qadam rangli plitkalarda','3–8 шагов цветными плитками','3–8 steps as colour tiles'),
   fields:[{k:'title',t:'text'},{k:'word',t:'text'},{k:'steps',t:'list',min:3,max:8,of:[{k:'name',t:'text'}]}],
   sample:{title:'Taqdimot yaratishning 6 qadami',word:'QADAM',steps:['G\'oya','Tuzilma','Dizayn','Vizual','Mashq','Chiqish'].map(name=>({name}))},
   build(f,P){const c=P.c,st=f.steps||[],n=st.length,num=String(n),slides=[];
@@ -3449,7 +3456,7 @@ M.stepsHub={n:28,group:'light',name:SAY('Qadamlar markazi','Центр шаго�
     slides.push({bg:c.frame,els,anims:an,dur:1.4});return slides}};
 
 /* 29 Step Photo Card */
-M.stepPhoto={n:29,group:'light',name:SAY('Qadam rasm kartasi','Шаг с фото','Step Photo Card'),use:SAY('har bir qadam: rasm, matn, maslahat','каждый шаг: фото, текст, совет','each step: photo, text, tip'),
+M.stepPhoto={n:29,focus:i=>i,group:'light',name:SAY('Qadam rasm kartasi','Шаг с фото','Step Photo Card'),use:SAY('har bir qadam: rasm, matn, maslahat','каждый шаг: фото, текст, совет','each step: photo, text, tip'),
   fields:[{k:'word',t:'text'},{k:'tipWord',t:'text'},{k:'steps',t:'list',min:1,max:8,of:[{k:'title',t:'text'},{k:'text',t:'area'},{k:'tip',t:'area'},{k:'img',t:'img'}]}],
   sample:{word:'QADAM',tipWord:'MASLAHAT',steps:[{title:'Mashq',text:'Chiqishni ovoz chiqarib uch marta takrorlang: taymer bilan, kameraga va do\'stlar oldida.',tip:'Har bir slaydga bitta asosiy fikr — ortiqchasini olib tashlang.'},
     {title:'Chiqish',text:'Tinglovchilar bilan ko\'z aloqasini saqlang va asosiy fikrni oxirida yana takrorlang.',tip:'Oxirgi slayd — «rahmat» emas, keyingi qadam bo\'lsin.'}]},
@@ -3472,7 +3479,7 @@ function wheelEls(c,parts,word,cx,cy,R,{explode=0,pull=null,dim=false}={}){const
     els.push(text('sn'+i,mx-R*.3,my-18,R*.6,36,explode?'':parts[i].name,Math.max(11,Math.min(16,R/19)),'#ffffff',{b:1,al:'c',va:'m'}))}
   const r=R*.29;els.push(oval('badge',cx-r,cy-r,2*r,2*r,c.navy,{line:'#ffffff',lw:6}),text('bsub',cx-r,cy-r*.62,2*r,r*.3,word,Math.max(7,r/9),c.onNavy,{al:'c',va:'m',sp:1}),
     text('bn',cx-r,cy-r*.42,2*r,r*1.1,String(n),r*.62,'#ffffff',{b:1,al:'c',va:'m'}));return els}
-M.wheel={n:30,group:'light',name:SAY('G\'ildirak','Колесо','Wheel'),use:SAY('3–8 bo\'lakli doira, har biri batafsil','круг из 3–8 частей с пояснениями','3–8 part wheel with details'),
+M.wheel={n:30,focus:i=>i+2,group:'light',name:SAY('G\'ildirak','Колесо','Wheel'),use:SAY('3–8 bo\'lakli doira, har biri batafsil','круг из 3–8 частей с пояснениями','3–8 part wheel with details'),
   fields:[{k:'title',t:'text'},{k:'word',t:'text'},{k:'parts',t:'list',min:3,max:8,of:[{k:'name',t:'text'},{k:'text',t:'area'}]}],
   sample:{title:'Taqdimot yaratishning 6 qadami',word:'QADAM',parts:[['G\'oya','Mavzuni tanlang va tinglovchiga qanday foyda berishini bir jumlada yozing.'],['Tuzilma','Kirish, asosiy qism va xulosani rejalang: har biriga 2–3 slayd.'],
     ['Dizayn','Bitta rang mavzusi va ikki shrift tanlang.'],['Vizual','Matnni rasm, sxema va raqamlar bilan almashtiring.'],['Mashq','Chiqishni ovoz chiqarib uch marta takrorlang.'],['Chiqish','Asosiy fikrni oxirida yana takrorlang.']].map(([name,text])=>({name,text}))},
@@ -3485,7 +3492,7 @@ M.wheel={n:30,group:'light',name:SAY('G\'ildirak','Колесо','Wheel'),use:SA
     return slides}};
 
 /* 31 Flip Cards */
-M.flipCards={n:31,group:'light',name:SAY('Ochiluvchi kartalar','Открывающиеся карточки','Flip Cards'),use:SAY('raqamli kartalar birma-bir ochiladi','нумерованные карточки открываются по очереди','numbered cards open one by one'),
+M.flipCards={n:31,focus:i=>i+1,group:'light',name:SAY('Ochiluvchi kartalar','Открывающиеся карточки','Flip Cards'),use:SAY('raqamli kartalar birma-bir ochiladi','нумерованные карточки открываются по очереди','numbered cards open one by one'),
   fields:[{k:'title',t:'text'},{k:'tag',t:'text'},{k:'fixWord',t:'text'},{k:'cards',t:'list',min:2,max:6,of:[{k:'label',t:'text'},{k:'title',t:'text'},{k:'text',t:'area'},{k:'fix',t:'area'}]}],
   sample:{title:'Taqdimotdagi 5 ta xato',tag:'XATO',fixWord:'QANDAY TUZATISH',cards:[['Ko\'p matn','Juda ko\'p matn','Slaydda matn ko\'p bo\'lsa, tinglovchi o\'qiydi, sizni esa eshitmaydi.','Bitta slayd — bitta fikr, 6 qatordan oshmasin.'],
     ['Mayda shrift','Mayda shrift','Orqa qatordagilar 18 pt dan kichik matnni o\'qiy olmaydi.','Matn kamida 24 pt, sarlavha 36 pt.'],['Xulosa yo\'q','Xulosa yo\'q','Tinglovchi «rahmat» bilan emas, aniq harakat bilan ketishi kerak.','Oxirgi slaydda — keyingi qadam.'],
@@ -3520,10 +3527,16 @@ M.wavePhoto={n:33,group:'photo',name:SAY('To\'lqinli rasm','Фото с волн
 const ORDER=['glassTitle','divider','accordion','contact','stepsHub','stepPhoto','wheel','flipCards','photoTitle','wavePhoto'];
 
 /* ---------- building slides for a page ---------- */
+const BASE=new Set(['sheet','panel','plate']);
 function slidesFor(id,f,T){const P={c:palette(T)[M[id].group],logo:null};const out=M[id].build(f,P)||[];
-  return out.map(s=>({...s,els:s.els.map(e=>({...e}))}))}
+  return out.map(s=>{const els=s.els.map(e=>({...e}));
+    /* the deck / page background picture sits on the base layer, under cards and text */
+    if(T.bgImgId&&T.images&&T.images[T.bgImgId]&&T.bgVis>0){let k=-1;els.forEach((e,i)=>{if(BASE.has(e.n))k=i});
+      els.splice(k+1,0,{n:'bgimg',t:'pic',img:T.bgImgId,x:0,y:0,w:1600,h:900,a:T.bgVis,bg:true})}
+    return{...s,els}})}
 
 /* ---------- drawing (preview) ---------- */
+function fitOf(img){const f=img&&img._fit||{};return{z:Math.max(1,(+f.z||100)/100),x:(f.x??50)/100,y:(f.y??50)/100,o:(f.o??100)/100}}
 const PX=1/0.6;   /* 1 pt = 1/0.6 design pixels on a 1600-wide slide */
 function imgFor(key,T){if(!key)return null;if(T.images&&T.images[key])return T.images[key];
   if(/^(ribbon|soft|photo):/.test(key))return genImage(key,T.accent);return null}
@@ -3539,7 +3552,7 @@ function shapePath(x,e){const{w,h}=e;x.beginPath();
 function drawEl(x,e,T,alpha=1,mult=1){if(alpha<=0.003||e.w<.5&&e.h<.5)return;x.save();x.globalAlpha=alpha*(e.t==='pic'||e.t==='text'?1:(e.a??1));
   x.translate(e.x+e.w/2,e.y+e.h/2);if(e.rot)x.rotate(e.rot*Math.PI/180);if(e.sc&&e.sc!==1)x.scale(e.sc,e.sc);x.translate(-e.w/2,-e.h/2);
   if(e.t==='pic'){const im=imgFor(e.img,T);x.globalAlpha=alpha*(e.a??1);x.beginPath();x.roundRect(0,0,e.w,e.h,Math.min(e.w,e.h)*(e.r||0));x.clip();
-    if(im){const k=Math.max(e.w/im.width,e.h/im.height);x.drawImage(im,(e.w-im.width*k)/2,(e.h-im.height*k)/2,im.width*k,im.height*k)}else{x.fillStyle='#334';x.fillRect(0,0,e.w,e.h)}}
+    if(im){const f=fitOf(im),k=Math.max(e.w/im.width,e.h/im.height)*f.z;if(!e.bg)x.globalAlpha*=f.o;x.drawImage(im,(e.w-im.width*k)*f.x,(e.h-im.height*k)*f.y,im.width*k,im.height*k)}else{x.fillStyle='#334';x.fillRect(0,0,e.w,e.h)}}
   else if(e.t==='text'){if(e.tx){const size=e.sz*PX*mult;x.font=`${e.b?700:400} ${size}px ${fontOf(e,T)}`;if('letterSpacing' in x)x.letterSpacing=((e.sp||0)*PX)+'px';
     const lines=wrap(x,e.tx,e.w+2),lh=size*1.2*(e.lh||1),bh=lines.length*lh,y0=e.va==='m'?(e.h-bh)/2:e.va==='b'?e.h-bh:0;
     const paint=ctx=>{ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.direction='ltr';lines.forEach((ln,i)=>{const lw=ctx.measureText(ln).width,X=e.al==='c'?(e.w-lw)/2:e.al==='r'?e.w-lw:0;ctx.fillText(ln,X,y0+i*lh+size*.95)})};
@@ -3574,6 +3587,9 @@ function timeline(slides){let t=0;return slides.map(s=>{const d=s.dur||TRANS,seg
 function render(ctx,id,f,t,T){const slides=slidesFor(id,f,T),tl=timeline(slides),mult=ST.SIZES[T.size]||1;const total=tl.length?tl[tl.length-1].end:1;
   let i=tl.findIndex(g=>t<g.end);if(i<0)i=tl.length-1;const g=tl[i],lt=t-g.start;
   if(lt<g.trans)drawTransition(ctx,i?tl[i-1].s:null,g.s,T,lt/g.trans,mult);else drawSlide(ctx,g.s,T,lt-g.trans,mult);return total}
+/* the moment of the page timeline where slide k is fully shown (used while editing item k) */
+function timeAtSlide(id,f,T,item){const tl=timeline(slidesFor(id,f,T));if(!tl.length)return 0;const m=M[id].focus;
+  const k=Math.max(0,Math.min(tl.length-1,m?m(item,tl.length):tl.length-1)),g=tl[k];return g.start+g.trans+g.anim+.5}
 function durOf(id,f,T){const tl=timeline(slidesFor(id,f,T));return tl.length?tl[tl.length-1].end:1}
 
 /* ---------- join the page-style list used by the editor and the exporter ---------- */
@@ -3584,7 +3600,7 @@ ORDER.forEach(id=>{ST.S[id]={...M[id],id,kind:'morph',dur:0,durFor:f=>durOf(id,f
 const baseRender=ST.render;
 ST.render=function(ctx,id,f,t,T,o){if(ST.S[id]&&ST.S[id].kind==='morph'){ctx.save();render(ctx,id,f,t,T);ctx.restore();return}return baseRender(ctx,id,f,t,T,o)};
 
-window.IMXMorph={M,ORDER,TILE,slidesFor,render,durOf,genImage,imgFor,palette,PX};
+window.IMXMorph={fitOf,timeAtSlide,M,ORDER,TILE,slidesFor,render,durOf,genImage,imgFor,palette,PX};
 })();
 
 ;
@@ -3699,9 +3715,12 @@ function geomXML(e){
 function morphShapeXML(e,id,T,lang,rel,mult){
   const nv=`<p:cNvPr id="${id}" name="!!${esc(e.n)}"/>`;
   if(e.t==='pic'){const im=rel(e.img,e.n==='logo');if(!im)return'';
-    const tr=e.w/e.h,ir=im.w/im.h;let l=0,t=0;if(ir>tr)l=(1-tr/ir)/2;else t=(1-ir/tr)/2;
+    const src=window.IMXMorph.imgFor(e.img,T),f=window.IMXMorph.fitOf(src);
+    /* visible part of the picture: cover-fit, then zoom, then shift toward the chosen point */
+    const tr=e.w/e.h,ir=im.w/im.h;let vw=1,vh=1;if(ir>tr)vw=tr/ir;else vh=ir/tr;vw/=f.z;vh/=f.z;
+    const l=(1-vw)*f.x,r=(1-vw)*(1-f.x),t=(1-vh)*f.y,b=(1-vh)*(1-f.y),alpha=(e.a??1)*(e.bg?1:f.o);
     const geo=e.r?`<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.round(Math.min(.5,e.r)*100000)}"/></a:avLst></a:prstGeom>`:'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
-    return`<p:pic><p:nvPicPr>${nv}<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}">${e.a!=null&&e.a<1?`<a:alphaModFix amt="${Math.round(clampA(e.a)*100000)}"/>`:''}</a:blip><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(l*100000)}" b="${Math.round(t*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
+    return`<p:pic><p:nvPicPr>${nv}<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}">${alpha<1?`<a:alphaModFix amt="${Math.round(clampA(alpha)*100000)}"/>`:''}</a:blip><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(r*100000)}" b="${Math.round(b*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
   if(e.t==='text'){const sz=Math.max(100,Math.round(e.sz*mult*100)),algn={l:'l',c:'ctr',r:'r'}[e.al||'l'],anchor={t:'t',m:'ctr',b:'b'}[e.va||'t'];
     const face=esc(e.font==='head'?(T.headFont||'Georgia'):(T.bodyFont||'Calibri'));
     let fill=fillXML(e.col);if(e.fillImg){const im=rel(e.fillImg);if(im)fill=`<a:blipFill dpi="0" rotWithShape="1"><a:blip r:embed="${im.rid}"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>`}
@@ -3843,6 +3862,9 @@ Object.assign(UI.en,{subtitle:'Subtitle',logo:'Logo (optional)',left:'Left text 
   word:'"Step" word',steps:'Steps',tipWord:'"Tip" word',tip:'Tip',parts:'Parts',cards:'Cards',fix:'How to fix',fixWord:'"Fix" heading',tag:'Tag word',col1:'Column 1',col2:'Column 2',
   morphNote:'This page is built from PowerPoint shapes and becomes {n} slides with Morph transitions between them (PowerPoint 2019 / 365; older versions show a fade). Text and shapes stay editable in PowerPoint. Change the number of items below.',
   madeShapes:'Done! In Slide Show (F5) the Morph transitions play on each click.'});
+Object.assign(UI.uz,{changeImg:'Rasmni almashtirish',imgVis:'Koʻrinishi',imgZoom:'Kattalashtirish',imgX:'Chap ↔ oʻng',imgY:'Yuqori ↕ past',imgReset:'Asl holiga qaytarish',badImg:'Bu rasmni ochib boʻlmadi'});
+Object.assign(UI.ru,{changeImg:'Заменить картинку',imgVis:'Видимость',imgZoom:'Увеличение',imgX:'Влево ↔ вправо',imgY:'Вверх ↕ вниз',imgReset:'Сбросить',badImg:'Не удалось открыть картинку'});
+Object.assign(UI.en,{changeImg:'Change picture',imgVis:'Visibility',imgZoom:'Zoom',imgX:'Left ↔ right',imgY:'Up ↕ down',imgReset:'Reset',badImg:'This picture could not be opened'});
 const t=(k,v)=>{let s=UI[ui][k]??UI.en[k]??k;if(v)for(const n in v)s=s.replace('{'+n+'}',v[n]);return s};
 
 /* ---------- state ---------- */
@@ -3866,8 +3888,8 @@ async function readImage(file,max=1920){
 async function addImage(file){const id=uid();S.images[id]=await readImage(file);return id}
 /* theme for one page: deck values, with the page's own overrides on top */
 function themeFor(p){const T={...S.theme};if(p&&p.ov)for(const k in p.ov)if(p.ov[k]!==''&&p.ov[k]!=null)T[k]=p.ov[k];
-  const images={};for(const id in S.images){const o=imgObj(id);if(o)images[id]=o}
-  return{...T,bgVis:(+T.bgVis||0)/100,bgImg:imgObj(T.bgImg),images}}
+  const images={};for(const id in S.images){const o=imgObj(id);if(o){o._fit=(S.imgSet||{})[id]||null;images[id]=o}}
+  return{...T,bgVis:(+T.bgVis||0)/100,bgImg:imgObj(T.bgImg),bgImgId:T.bgImg&&images[T.bgImg]?T.bgImg:'',images}}
 
 /* ---------- small helpers ---------- */
 let toastT=0;
@@ -3879,14 +3901,17 @@ function styleUse(id){const st=ST.S[id];return st.use[ui]||st.use.en}
 function snippet(p){const f=p.f;return f.heading||f.title||f.word||f.sentence||(f.lines&&f.lines.map(l=>l.text).join(' '))||''}
 
 /* ---------- live preview ---------- */
-const cv=$('cv'),ctx=cv.getContext('2d');let t0=performance.now(),hold=false;
+const cv=$('cv'),ctx=cv.getContext('2d');let t0=performance.now(),hold=false,focusItem=null;
 function curPage(){return S.pages.find(p=>p.id===sel)}
 function draw(){const p=curPage()||S.pages[0];if(!p){ctx.save();ctx.fillStyle='#070b16';ctx.fillRect(0,0,1600,900);ctx.fillStyle='#97a0b2';ctx.font='32px Georgia';ctx.textAlign='center';ctx.fillText(t('noPages'),800,460);ctx.restore();return}
-  const st=ST.S[p.style],dur=ST.durOf(st,p.f)+2.4,el=(performance.now()-t0)/1000,tt=hold?dur:Math.min(el,dur);
+  const st=ST.S[p.style],dur=ST.durOf(st,p.f)+2.4,el=(performance.now()-t0)/1000;
+  let tt=hold?dur:Math.min(el,dur);
+  /* while editing an item of a multi-slide Morph page, show the slide that item belongs to */
+  if(hold&&st.kind==='morph'&&focusItem!=null){try{tt=IMXMorph.timeAtSlide(p.style,p.f,themeFor(p),focusItem)}catch(_){}}
   try{ST.render(ctx,p.style,p.f,tt,themeFor(p))}catch(e){console.error(e)}
   $('tbar').style.width=(Math.min(1,tt/dur)*100)+'%'}
 (function loop(){draw();requestAnimationFrame(loop)})();
-function replay(){hold=false;t0=performance.now()}
+function replay(){hold=false;focusItem=null;t0=performance.now()}
 function showEnd(){hold=true}
 $('replayBtn').onclick=replay;
 $('fullBtn').onclick=()=>{try{cv.requestFullscreen().catch(()=>{})}catch(_){}};
@@ -3946,17 +3971,26 @@ function fieldsForm(root,p,fields,prefix){
     else if(fd.t==='list'){const arr=getPath(p.f,path)||[];setPath(p.f,path,arr);const g=document.createElement('div');g.className='group';
       g.innerHTML=`<b>${esc(t(fd.k))} <span>${arr.length} / ${fd.max}</span></b>`;
       arr.forEach((_,i)=>{const it=document.createElement('div');it.className='group';it.style.background='var(--ink)';
+        it.addEventListener('focusin',()=>{focusItem=i});it.addEventListener('input',()=>{focusItem=i},true);it.addEventListener('pointerdown',()=>{focusItem=i},true);
         it.innerHTML=`<b>${i+1}${arr.length>fd.min?`<button class="ic" aria-label="${esc(t('remove'))}">✕</button>`:''}</b>`;
         const rm=it.querySelector('.ic');if(rm)rm.onclick=()=>{arr.splice(i,1);changed();renderSide()};
         fieldsForm(it,p,fd.of,`${path}.${i}.`);g.appendChild(it)});
       if(arr.length<fd.max){const add=document.createElement('button');add.className='btn small';add.textContent=t('add');
         add.onclick=()=>{const o={};fd.of.forEach(s=>{o[s.k]=s.t==='choice'?s.opts[0]:''});arr.push(o);changed();renderSide()};g.appendChild(add)}
       root.appendChild(g)}});}
-function imagePicker(box,get,set){
+/* picture slot: upload / remove, then sliders for how the picture sits in its place */
+function imagePicker(box,get,set,{bg=false}={}){
   const drawP=()=>{const id=get(),src=id&&S.images[id];
-    box.innerHTML=(src?`<span class="thumb"><img alt="" src="${src}"><button aria-label="${esc(t('remove'))}">✕</button></span>`:'')+`<label class="btn small file">${esc(t('addImg'))}<input type="file" accept="image/*"></label>`;
-    box.querySelector('input').onchange=async e=>{const f=e.target.files[0];if(!f)return;set(await addImage(f));drawP()};
-    const x=box.querySelector('.thumb button');if(x)x.onclick=()=>{set('');drawP()}};drawP()}
+    box.innerHTML=(src?`<span class="thumb"><img alt="" src="${src}"><button aria-label="${esc(t('remove'))}">✕</button></span>`:'')+`<label class="btn small file">${esc(src?t('changeImg'):t('addImg'))}<input type="file" accept="image/*"></label>`;
+    box.querySelector('input').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{set(await addImage(f));drawP()}catch(_){toast(t('badImg'))}};
+    const x=box.querySelector('.thumb button');if(x)x.onclick=()=>{set('');drawP()};
+    if(src){S.imgSet=S.imgSet||{};const st=S.imgSet[id]=S.imgSet[id]||{};
+      const rows=[...(bg?[]:[['o',0,100,100,'imgVis']]),['z',100,250,100,'imgZoom'],['x',0,100,50,'imgX'],['y',0,100,50,'imgY']];
+      const ctl=document.createElement('div');ctl.className='imgctl';
+      ctl.innerHTML=rows.map(([k,a,b,d,lab])=>`<label class="f"><span>${esc(t(lab))} <output>${st[k]??d}%</output></span><input type="range" min="${a}" max="${b}" value="${st[k]??d}" data-k="${k}"></label>`).join('')+`<button class="btn small" data-reset>${esc(t('imgReset'))}</button>`;
+      ctl.querySelectorAll('input[type=range]').forEach(r=>r.oninput=()=>{st[r.dataset.k]=+r.value;r.previousElementSibling.querySelector('output').textContent=r.value+'%';changed(true)});
+      ctl.querySelector('[data-reset]').onclick=()=>{delete S.imgSet[id];changed(true);drawP()};
+      box.appendChild(ctl)}};drawP()}
 
 /* design form, used for the whole deck and (with "deck default" options) for one page */
 function themeForm(root,o,page){
@@ -3985,7 +4019,7 @@ function themeForm(root,o,page){
   const own=root.querySelector('#ownColors');
   root.querySelectorAll('[data-c]').forEach(inp=>inp.oninput=()=>{if(page&&own)own.checked=true;o[inp.dataset.c]=inp.value;if(!page)S.theme.preset='';changed(true);renderList()});
   if(own)own.onchange=()=>{if(own.checked){['bg','accent','text'].forEach(k=>{o[k]=root.querySelector(`[data-c="${k}"]`).value})}else{delete o.bg;delete o.accent;delete o.text}changed(true)};
-  imagePicker($('bgPick'),()=>o.bgImg,v=>{o.bgImg=v;changed(true)});
+  imagePicker($('bgPick'),()=>o.bgImg,v=>{o.bgImg=v;if(v&&page)o.bgVis=o.bgVis??S.theme.bgVis;changed(true)},{bg:true});
   const vis=$('vis'),vo=$('visOut');vis.value=o.bgVis??S.theme.bgVis;vo.textContent=vis.value+'%';vis.oninput=()=>{o.bgVis=+vis.value;vo.textContent=vis.value+'%';changed(true)};
 }
 
@@ -4033,13 +4067,18 @@ let exArm=0;
 $('exampleBtn').onclick=()=>{if(S.pages.length&&Date.now()-exArm>3000){exArm=Date.now();toast(t('confirmEx'));return}
   const e=blank();e.title='Namuna taqdimot';e.pages=['glassTitle','split','accordion','points','stats','wheel','flipCards','quiz','contact','kinetic'].map(id=>({id:uid(),style:id,f:clone(ST.S[id].sample),ov:{}}));
   e.pages[e.pages.length-1].f.sentence='E\'tiboringiz uchun rahmat';load(e)};
-function load(o){const b=blank();S={...b,...o,theme:{...b.theme,...(o.theme||{})},images:o.images||{}};delete S.imx;
+function load(o){const b=blank();S={...b,...o,theme:{...b.theme,...(o.theme||{})},images:o.images||{},imgSet:o.imgSet||{}};delete S.imx;delete S.imagesInDB;
   S.pages.forEach(p=>{p.id=p.id||uid();p.ov=p.ov||{};if(!ST.S[p.style])p.style='split'});
   for(const k in IMGS)delete IMGS[k];sel=S.pages[0]?.id||'theme';tab='content';renderList();renderSide();replay();saveSoon()}
 
 /* ---------- autosave and refresh ---------- */
 let saveT=0,listT=0;
-function saveSoon(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('imx2',JSON.stringify(S))}catch(_){try{localStorage.setItem('imx2',JSON.stringify({...S,images:{}}))}catch(__){}}},700)}
+const IDB={db:null,open(){if(this.db)return Promise.resolve(this.db);return new Promise(r=>{try{const q=indexedDB.open('imx',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>r(this.db=q.result);q.onerror=()=>r(null)}catch(_){r(null)}})},
+  async set(k,v){const db=await this.open();if(!db)return false;return new Promise(r=>{try{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>r(true);tx.onerror=()=>r(false)}catch(_){r(false)}})},
+  async get(k){const db=await this.open();if(!db)return null;return new Promise(r=>{try{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>r(q.result||null);q.onerror=()=>r(null)}catch(_){r(null)}})}};
+function saveSoon(){clearTimeout(saveT);saveT=setTimeout(async()=>{
+  const ok=await IDB.set('images',S.images);
+  try{localStorage.setItem('imx2',JSON.stringify(ok?{...S,images:{},imagesInDB:true}:S))}catch(_){try{localStorage.setItem('imx2',JSON.stringify({...S,images:{}}))}catch(__){}}},700)}
 function renderListSoon(){clearTimeout(listT);listT=setTimeout(renderList,300)}
 function changed(quiet){saveSoon();if(quiet)showEnd()}
 
@@ -4049,8 +4088,10 @@ function applyUI(){document.documentElement.lang=ui;document.querySelectorAll('[
 document.querySelectorAll('[data-ui]').forEach(b=>b.onclick=()=>{ui=b.dataset.ui;try{localStorage.setItem('imx-ui',ui)}catch(_){}applyUI()});
 try{ui=localStorage.getItem('imx-ui')||'uz'}catch(_){}if(!UI[ui])ui='uz';
 let saved=null;try{saved=JSON.parse(localStorage.getItem('imx2')||'null')}catch(_){}
-applyUI();if(saved&&saved.pages)load(saved);else{renderList();renderSide()}
-if(!S.pages.length)openGallery(null);
+applyUI();
+(async()=>{if(saved&&saved.pages){if(saved.imagesInDB||!Object.keys(saved.images||{}).length){const im=await IDB.get('images');if(im)saved.images=im}
+    delete saved.imagesInDB;load(saved)}else{renderList();renderSide()}
+  if(!S.pages.length)openGallery(null)})();
 </script>
 </body>
 </html>

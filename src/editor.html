@@ -96,6 +96,8 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 .media{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .thumb{position:relative;width:72px;height:48px;border-radius:6px;overflow:hidden;border:1px solid var(--gold-lo);background:var(--ink)}
 .thumb img{width:100%;height:100%;object-fit:cover}
+.imgctl{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:8px;border:1px dashed var(--line);border-radius:8px}
+.imgctl .f span{font-size:11px}.imgctl .btn{grid-column:1/-1;justify-self:start}
 .thumb button{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(0,0,0,.75);color:#fff;font-size:11px;padding:0}
 .presets{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .preset{border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--ink);display:flex;flex-direction:column;gap:5px;align-items:center;font-size:11px;color:var(--muted)}
@@ -245,6 +247,9 @@ Object.assign(UI.en,{subtitle:'Subtitle',logo:'Logo (optional)',left:'Left text 
   word:'"Step" word',steps:'Steps',tipWord:'"Tip" word',tip:'Tip',parts:'Parts',cards:'Cards',fix:'How to fix',fixWord:'"Fix" heading',tag:'Tag word',col1:'Column 1',col2:'Column 2',
   morphNote:'This page is built from PowerPoint shapes and becomes {n} slides with Morph transitions between them (PowerPoint 2019 / 365; older versions show a fade). Text and shapes stay editable in PowerPoint. Change the number of items below.',
   madeShapes:'Done! In Slide Show (F5) the Morph transitions play on each click.'});
+Object.assign(UI.uz,{changeImg:'Rasmni almashtirish',imgVis:'Koʻrinishi',imgZoom:'Kattalashtirish',imgX:'Chap ↔ oʻng',imgY:'Yuqori ↕ past',imgReset:'Asl holiga qaytarish',badImg:'Bu rasmni ochib boʻlmadi'});
+Object.assign(UI.ru,{changeImg:'Заменить картинку',imgVis:'Видимость',imgZoom:'Увеличение',imgX:'Влево ↔ вправо',imgY:'Вверх ↕ вниз',imgReset:'Сбросить',badImg:'Не удалось открыть картинку'});
+Object.assign(UI.en,{changeImg:'Change picture',imgVis:'Visibility',imgZoom:'Zoom',imgX:'Left ↔ right',imgY:'Up ↕ down',imgReset:'Reset',badImg:'This picture could not be opened'});
 const t=(k,v)=>{let s=UI[ui][k]??UI.en[k]??k;if(v)for(const n in v)s=s.replace('{'+n+'}',v[n]);return s};
 
 /* ---------- state ---------- */
@@ -268,8 +273,8 @@ async function readImage(file,max=1920){
 async function addImage(file){const id=uid();S.images[id]=await readImage(file);return id}
 /* theme for one page: deck values, with the page's own overrides on top */
 function themeFor(p){const T={...S.theme};if(p&&p.ov)for(const k in p.ov)if(p.ov[k]!==''&&p.ov[k]!=null)T[k]=p.ov[k];
-  const images={};for(const id in S.images){const o=imgObj(id);if(o)images[id]=o}
-  return{...T,bgVis:(+T.bgVis||0)/100,bgImg:imgObj(T.bgImg),images}}
+  const images={};for(const id in S.images){const o=imgObj(id);if(o){o._fit=(S.imgSet||{})[id]||null;images[id]=o}}
+  return{...T,bgVis:(+T.bgVis||0)/100,bgImg:imgObj(T.bgImg),bgImgId:T.bgImg&&images[T.bgImg]?T.bgImg:'',images}}
 
 /* ---------- small helpers ---------- */
 let toastT=0;
@@ -281,14 +286,17 @@ function styleUse(id){const st=ST.S[id];return st.use[ui]||st.use.en}
 function snippet(p){const f=p.f;return f.heading||f.title||f.word||f.sentence||(f.lines&&f.lines.map(l=>l.text).join(' '))||''}
 
 /* ---------- live preview ---------- */
-const cv=$('cv'),ctx=cv.getContext('2d');let t0=performance.now(),hold=false;
+const cv=$('cv'),ctx=cv.getContext('2d');let t0=performance.now(),hold=false,focusItem=null;
 function curPage(){return S.pages.find(p=>p.id===sel)}
 function draw(){const p=curPage()||S.pages[0];if(!p){ctx.save();ctx.fillStyle='#070b16';ctx.fillRect(0,0,1600,900);ctx.fillStyle='#97a0b2';ctx.font='32px Georgia';ctx.textAlign='center';ctx.fillText(t('noPages'),800,460);ctx.restore();return}
-  const st=ST.S[p.style],dur=ST.durOf(st,p.f)+2.4,el=(performance.now()-t0)/1000,tt=hold?dur:Math.min(el,dur);
+  const st=ST.S[p.style],dur=ST.durOf(st,p.f)+2.4,el=(performance.now()-t0)/1000;
+  let tt=hold?dur:Math.min(el,dur);
+  /* while editing an item of a multi-slide Morph page, show the slide that item belongs to */
+  if(hold&&st.kind==='morph'&&focusItem!=null){try{tt=IMXMorph.timeAtSlide(p.style,p.f,themeFor(p),focusItem)}catch(_){}}
   try{ST.render(ctx,p.style,p.f,tt,themeFor(p))}catch(e){console.error(e)}
   $('tbar').style.width=(Math.min(1,tt/dur)*100)+'%'}
 (function loop(){draw();requestAnimationFrame(loop)})();
-function replay(){hold=false;t0=performance.now()}
+function replay(){hold=false;focusItem=null;t0=performance.now()}
 function showEnd(){hold=true}
 $('replayBtn').onclick=replay;
 $('fullBtn').onclick=()=>{try{cv.requestFullscreen().catch(()=>{})}catch(_){}};
@@ -348,17 +356,26 @@ function fieldsForm(root,p,fields,prefix){
     else if(fd.t==='list'){const arr=getPath(p.f,path)||[];setPath(p.f,path,arr);const g=document.createElement('div');g.className='group';
       g.innerHTML=`<b>${esc(t(fd.k))} <span>${arr.length} / ${fd.max}</span></b>`;
       arr.forEach((_,i)=>{const it=document.createElement('div');it.className='group';it.style.background='var(--ink)';
+        it.addEventListener('focusin',()=>{focusItem=i});it.addEventListener('input',()=>{focusItem=i},true);it.addEventListener('pointerdown',()=>{focusItem=i},true);
         it.innerHTML=`<b>${i+1}${arr.length>fd.min?`<button class="ic" aria-label="${esc(t('remove'))}">✕</button>`:''}</b>`;
         const rm=it.querySelector('.ic');if(rm)rm.onclick=()=>{arr.splice(i,1);changed();renderSide()};
         fieldsForm(it,p,fd.of,`${path}.${i}.`);g.appendChild(it)});
       if(arr.length<fd.max){const add=document.createElement('button');add.className='btn small';add.textContent=t('add');
         add.onclick=()=>{const o={};fd.of.forEach(s=>{o[s.k]=s.t==='choice'?s.opts[0]:''});arr.push(o);changed();renderSide()};g.appendChild(add)}
       root.appendChild(g)}});}
-function imagePicker(box,get,set){
+/* picture slot: upload / remove, then sliders for how the picture sits in its place */
+function imagePicker(box,get,set,{bg=false}={}){
   const drawP=()=>{const id=get(),src=id&&S.images[id];
-    box.innerHTML=(src?`<span class="thumb"><img alt="" src="${src}"><button aria-label="${esc(t('remove'))}">✕</button></span>`:'')+`<label class="btn small file">${esc(t('addImg'))}<input type="file" accept="image/*"></label>`;
-    box.querySelector('input').onchange=async e=>{const f=e.target.files[0];if(!f)return;set(await addImage(f));drawP()};
-    const x=box.querySelector('.thumb button');if(x)x.onclick=()=>{set('');drawP()}};drawP()}
+    box.innerHTML=(src?`<span class="thumb"><img alt="" src="${src}"><button aria-label="${esc(t('remove'))}">✕</button></span>`:'')+`<label class="btn small file">${esc(src?t('changeImg'):t('addImg'))}<input type="file" accept="image/*"></label>`;
+    box.querySelector('input').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{set(await addImage(f));drawP()}catch(_){toast(t('badImg'))}};
+    const x=box.querySelector('.thumb button');if(x)x.onclick=()=>{set('');drawP()};
+    if(src){S.imgSet=S.imgSet||{};const st=S.imgSet[id]=S.imgSet[id]||{};
+      const rows=[...(bg?[]:[['o',0,100,100,'imgVis']]),['z',100,250,100,'imgZoom'],['x',0,100,50,'imgX'],['y',0,100,50,'imgY']];
+      const ctl=document.createElement('div');ctl.className='imgctl';
+      ctl.innerHTML=rows.map(([k,a,b,d,lab])=>`<label class="f"><span>${esc(t(lab))} <output>${st[k]??d}%</output></span><input type="range" min="${a}" max="${b}" value="${st[k]??d}" data-k="${k}"></label>`).join('')+`<button class="btn small" data-reset>${esc(t('imgReset'))}</button>`;
+      ctl.querySelectorAll('input[type=range]').forEach(r=>r.oninput=()=>{st[r.dataset.k]=+r.value;r.previousElementSibling.querySelector('output').textContent=r.value+'%';changed(true)});
+      ctl.querySelector('[data-reset]').onclick=()=>{delete S.imgSet[id];changed(true);drawP()};
+      box.appendChild(ctl)}};drawP()}
 
 /* design form, used for the whole deck and (with "deck default" options) for one page */
 function themeForm(root,o,page){
@@ -387,7 +404,7 @@ function themeForm(root,o,page){
   const own=root.querySelector('#ownColors');
   root.querySelectorAll('[data-c]').forEach(inp=>inp.oninput=()=>{if(page&&own)own.checked=true;o[inp.dataset.c]=inp.value;if(!page)S.theme.preset='';changed(true);renderList()});
   if(own)own.onchange=()=>{if(own.checked){['bg','accent','text'].forEach(k=>{o[k]=root.querySelector(`[data-c="${k}"]`).value})}else{delete o.bg;delete o.accent;delete o.text}changed(true)};
-  imagePicker($('bgPick'),()=>o.bgImg,v=>{o.bgImg=v;changed(true)});
+  imagePicker($('bgPick'),()=>o.bgImg,v=>{o.bgImg=v;if(v&&page)o.bgVis=o.bgVis??S.theme.bgVis;changed(true)},{bg:true});
   const vis=$('vis'),vo=$('visOut');vis.value=o.bgVis??S.theme.bgVis;vo.textContent=vis.value+'%';vis.oninput=()=>{o.bgVis=+vis.value;vo.textContent=vis.value+'%';changed(true)};
 }
 
@@ -435,13 +452,18 @@ let exArm=0;
 $('exampleBtn').onclick=()=>{if(S.pages.length&&Date.now()-exArm>3000){exArm=Date.now();toast(t('confirmEx'));return}
   const e=blank();e.title='Namuna taqdimot';e.pages=['glassTitle','split','accordion','points','stats','wheel','flipCards','quiz','contact','kinetic'].map(id=>({id:uid(),style:id,f:clone(ST.S[id].sample),ov:{}}));
   e.pages[e.pages.length-1].f.sentence='E\'tiboringiz uchun rahmat';load(e)};
-function load(o){const b=blank();S={...b,...o,theme:{...b.theme,...(o.theme||{})},images:o.images||{}};delete S.imx;
+function load(o){const b=blank();S={...b,...o,theme:{...b.theme,...(o.theme||{})},images:o.images||{},imgSet:o.imgSet||{}};delete S.imx;delete S.imagesInDB;
   S.pages.forEach(p=>{p.id=p.id||uid();p.ov=p.ov||{};if(!ST.S[p.style])p.style='split'});
   for(const k in IMGS)delete IMGS[k];sel=S.pages[0]?.id||'theme';tab='content';renderList();renderSide();replay();saveSoon()}
 
 /* ---------- autosave and refresh ---------- */
 let saveT=0,listT=0;
-function saveSoon(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('imx2',JSON.stringify(S))}catch(_){try{localStorage.setItem('imx2',JSON.stringify({...S,images:{}}))}catch(__){}}},700)}
+const IDB={db:null,open(){if(this.db)return Promise.resolve(this.db);return new Promise(r=>{try{const q=indexedDB.open('imx',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>r(this.db=q.result);q.onerror=()=>r(null)}catch(_){r(null)}})},
+  async set(k,v){const db=await this.open();if(!db)return false;return new Promise(r=>{try{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>r(true);tx.onerror=()=>r(false)}catch(_){r(false)}})},
+  async get(k){const db=await this.open();if(!db)return null;return new Promise(r=>{try{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>r(q.result||null);q.onerror=()=>r(null)}catch(_){r(null)}})}};
+function saveSoon(){clearTimeout(saveT);saveT=setTimeout(async()=>{
+  const ok=await IDB.set('images',S.images);
+  try{localStorage.setItem('imx2',JSON.stringify(ok?{...S,images:{},imagesInDB:true}:S))}catch(_){try{localStorage.setItem('imx2',JSON.stringify({...S,images:{}}))}catch(__){}}},700)}
 function renderListSoon(){clearTimeout(listT);listT=setTimeout(renderList,300)}
 function changed(quiet){saveSoon();if(quiet)showEnd()}
 
@@ -451,8 +473,10 @@ function applyUI(){document.documentElement.lang=ui;document.querySelectorAll('[
 document.querySelectorAll('[data-ui]').forEach(b=>b.onclick=()=>{ui=b.dataset.ui;try{localStorage.setItem('imx-ui',ui)}catch(_){}applyUI()});
 try{ui=localStorage.getItem('imx-ui')||'uz'}catch(_){}if(!UI[ui])ui='uz';
 let saved=null;try{saved=JSON.parse(localStorage.getItem('imx2')||'null')}catch(_){}
-applyUI();if(saved&&saved.pages)load(saved);else{renderList();renderSide()}
-if(!S.pages.length)openGallery(null);
+applyUI();
+(async()=>{if(saved&&saved.pages){if(saved.imagesInDB||!Object.keys(saved.images||{}).length){const im=await IDB.get('images');if(im)saved.images=im}
+    delete saved.imagesInDB;load(saved)}else{renderList();renderSide()}
+  if(!S.pages.length)openGallery(null)})();
 </script>
 </body>
 </html>
