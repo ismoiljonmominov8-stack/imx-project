@@ -12,7 +12,7 @@ IMX builds animated presentations in the browser and saves them as **PowerPoint 
 
 **Pictures:** after you upload a picture, sliders appear under it: **Visibility**, **Zoom**, **Left ↔ right** and **Up ↕ down**, so you can choose how much of it shows and which part stays in view. The background picture (Design → background image) has its own visibility slider and now shows on every page style, including the Morph templates. Pictures are kept in the browser (IndexedDB), so a big project survives a page reload.
 
-**Videos:** any picture place also takes a video (MP4 is best; WebM and MOV are converted to MP4 when the file is created). It plays by itself, muted and looping, in the preview and in Slide Show. On the Morph templates (24–33) it is a real PowerPoint video; on styles 9–23 the finished page is saved as a looping clip with the video playing in its place. Videos are saved inside the `.imx.json` project.
+**Videos:** any picture place also takes a video (MP4 is best; WebM and MOV are converted to MP4 when the file is created). It plays by itself, muted and looping, in the preview and in Slide Show. On the Morph templates (24–33) it is a real PowerPoint video; on styles 9–23 the video is placed as a real PowerPoint video exactly where the picture ends up, after the page animation. Videos are saved inside the `.imx.json` project.
 
 **Text size:** Design → *Heading size (pt)* and *Text size (pt)* take any number from 6 to 200, like Word. *If text does not fit* chooses between shrinking it to fit its box or keeping the exact size. Each page can have its own sizes in the *Look* tab.
 

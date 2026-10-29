@@ -107,6 +107,7 @@ S.split={n:9,name:{uz:'Ikki tomon',ru:'Разделённый экран',en:'Sp
     const z=1.12-.12*eo(seg(t,1,6));x.translate(1170,450);x.scale(z,z);x.translate(-1170,-450);picture(700,0,900,H,2,IMG[f.img]);x.restore();
     const d=eo(seg(t,1.2,1.8));x.strokeStyle=C.hi;x.lineWidth=6;x.beginPath();x.moveTo(900,0);x.lineTo(lerp(900,740,d),H*d);x.stroke();
     const ul=eo(seg(t,1.9,2.4));x.fillStyle=C.gold;x.fillRect(100,300,240*ul,4);},
+  media(f){return[{img:f.img,x:740,y:0,w:860,h:900,geom:{t:'poly',pts:[[900,0],[1600,0],[1600,900],[740,900]]},at:1.3}]},
   slots(f){return[{key:'heading',x:100,y:170,w:620,h:120,role:'h',align:'l',valign:'b',at:1.5,text:f.heading||''},
     {key:'text',x:100,y:340,w:600,h:470,role:'b',align:'l',at:2.1,text:f.text||''}]}};
 
@@ -168,6 +169,8 @@ S.gallery={n:12,name:{uz:'Foto stol',ru:'Фото на столе',en:'Polaroid 
       x.save();x.translate(px,lerp(py-760,py,e));x.rotate(r+(1-e)*1.4);x.scale(s,s);
       x.shadowColor='rgba(0,0,0,.6)';x.shadowBlur=30;x.shadowOffsetY=16;x.fillStyle='#f3ead6';x.fillRect(-170,-200,340,400);x.shadowColor='transparent';
       picture(-150,-180,300,290,i,IMG[(ph[i]||{}).img]);x.restore()})},
+  media(f){const ph=f.photos||[],L=polLayout(ph.length);return L.map(([px,py,r],i)=>{const k=.74,cx=px+Math.sin(r)*35*k,cy=py-Math.cos(r)*35*k;
+    return{img:(ph[i]||{}).img,x:cx-111,y:cy-107.3,w:222,h:214.6,rot:r*180/Math.PI,geom:{t:'rect'},at:.4+i*.4+.85}})},
   slots(f){const ph=f.photos||[],L=polLayout(ph.length),out=[headSlot(f,.2)];
     L.forEach(([px,py,r],i)=>{const s=.74,cx=px-Math.sin(r)*150*s,cy=py+Math.cos(r)*150*s;
       out.push({key:`photos.${i}.caption`,x:cx-120,y:cy-24,w:240,h:48,role:'s',align:'c',valign:'m',at:.4+i*.4+.9,rot:r*180/Math.PI,color:'#2b2216',text:(ph[i]||{}).caption||''})});return out}};
@@ -246,6 +249,7 @@ S.blinds={n:16,name:{uz:'Jalyuzi',ru:'Жалюзи',en:'Window Blinds'},use:{uz:
     const cp=1-seg(t,.4,1.3);if(cp>0){x.strokeStyle=rgba(C.hi,cp);x.lineWidth=3;[400,1200].forEach(cx=>{x.beginPath();x.moveTo(cx,0);x.lineTo(cx,H);x.stroke()})}
     const q=eo(seg(t,2,2.7));if(q>0){x.save();x.globalAlpha=q;const g=x.createLinearGradient(0,580,0,H);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,rgba(C.bg3,.93));x.fillStyle=g;x.fillRect(0,560,W,340);
       x.fillStyle=C.gold;x.fillRect(120,700,200*q,4);x.restore()}},
+  media(f){return[{img:f.img,x:0,y:0,w:1600,h:900,geom:{t:'rect'},at:2.2}]},
   slots(f){return[{key:'heading',x:120,y:590,w:1360,h:100,role:'h',align:'l',valign:'b',at:2.3,text:f.heading||''},
     {key:'text',x:120,y:720,w:1360,h:110,role:'b',align:'l',at:2.6,text:f.text||''}]}};
 
@@ -267,6 +271,7 @@ S.spotlight={n:17,name:{uz:'Sahna nuri',ru:'Прожектор',en:'Spotlight St
           x.fillStyle=goldFill(Y+80,Y+140);x.font=`700 56px ${F.head}`;x.textAlign='center';x.textBaseline='middle';x.fillText((o.name||'?').split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase(),cx,Y+114)}
         x.restore();x.strokeStyle=C.gold;x.lineWidth=3;x.beginPath();x.arc(cx,Y+110,74,0,7);x.stroke();x.restore()}});
     headDeco(t,2.6,f.heading,m)},
+  media(f){const pp=f.people||[],X=spotX(clamp(pp.length,1,4));return X.map((cx,i)=>({img:(pp[i]||{}).img,x:cx-74,y:326,w:148,h:148,geom:{t:'oval'},at:.5+i*.7+.85}))},
   slots(f){const pp=f.people||[],X=spotX(clamp(pp.length,1,4)),out=[headSlot(f,2.8)];
     X.forEach((cx,i)=>{const o=pp[i]||{},a=.5+i*.7+.8;
       out.push({key:`people.${i}.name`,x:cx-140,y:500,w:280,h:90,role:'t',align:'c',valign:'m',at:a,text:o.name||''});
@@ -305,6 +310,7 @@ S.device={n:19,name:{uz:'Qurilma',ru:'Устройство',en:'Device Mockup'},
       if(on){x.globalAlpha=on;if(IMG[f.img])cover(IMG[f.img],-360,-sh+20,720,sh-40);else picture(-360,-sh+20,720,sh-40,0)}x.restore()}x.restore();
     const pp=back(seg(t,2.2,3));if(pp>0){x.save();x.translate(lerp(1800,1300,pp),600);x.rotate(.08*(1-pp));x.fillStyle=C.dark;rr(-115,-400,230,420,28);x.fill();x.lineWidth=5;x.strokeStyle=C.gold;x.stroke();
       x.save();rr(-100,-380,200,380,18);x.clip();if(IMG[f.img2])cover(IMG[f.img2],-100,-380,200,380);else picture(-100,-380,200,380,3);x.restore();x.restore()}},
+  media(f){return[{img:f.img,x:340,y:190,w:720,h:390,geom:{t:'round',r:6/390},at:2.25},{img:f.img2,x:1200,y:220,w:200,h:380,geom:{t:'round',r:18/200},at:3.05}]},
   slots(f){return[headSlot(f,3)]}};
 
 /* 20. Quiz Cards */
@@ -429,6 +435,8 @@ function render(ctx,id,f,t,T,{text=true}={}){x=ctx;setTheme(T);const st=S[id],m=
   ctx.save();ctx.clearRect(0,0,W,H);st.draw(t,f,m);
   if(text)slotsOf(id,f).forEach(s=>drawSlot(s,t,T,T.effect,T.speed));ctx.restore()}
 function fitFor(ctx,s,T){x=ctx;setTheme(T);return fitSlot(s,T)}
+/* picture places of a page in their final position (videos are placed there as real PowerPoint videos) */
+function mediaOf(id,f){return S[id].media?S[id].media(f).filter(m=>m.img):[]}
 function colorFor(ctx,s,T){x=ctx;setTheme(T);return slotColor(s)}
-window.IMXStyles={ratios,roleMult,BASE_PT,dimsOf,W,H,S,ORDER,THEMES,FONTS,SIZES,EFFECTS,SPEED,render,slotsOf,durOf,fitFor,colorFor,ROLE,LINE,mix};
+window.IMXStyles={mediaOf,ratios,roleMult,BASE_PT,dimsOf,W,H,S,ORDER,THEMES,FONTS,SIZES,EFFECTS,SPEED,render,slotsOf,durOf,fitFor,colorFor,ROLE,LINE,mix};
 })();
