@@ -3701,18 +3701,21 @@ async function transcodeMP4(src,cfg,maxDur=1800){
     for(let i=from;i<n;i++){if(err)throw err;await seekAll([v],i/FPS);const ts=Math.round(i*1e6/FPS);if(ts>last)put(ts);while(enc.encodeQueueSize>8)await sleep(4)}}
   await enc.flush();enc.close();muxer.finalize();if(err)throw err;return new Uint8Array(target.buffer)}
 /* a video as a looping animated GIF (10 frames a second, full length up to 60 s). One palette for the whole clip keeps colours steady. */
-async function videoGIF(src,width,{fps=10,maxDur=60,size=null,draw=null}={}){
+async function videoGIF(src,width,{fps=10,maxDur=30,size=null,draw=null,start=0}={}){
   const {GIFEncoder,quantize,applyPalette}=window.gifenc;
   const v=(await exportCopies({images:{k:src}}))[0],d0=dimsOf(v),w=size?size[0]:Math.max(16,Math.round(Math.min(width,d0.w)/2)*2),h=size?size[1]:Math.max(16,Math.round(w*d0.h/d0.w/2)*2);
   const paint=(cx,y0)=>{if(draw){cx.save();cx.translate(0,y0);draw(cx,v,w,h);cx.restore()}else cx.drawImage(v,0,y0,w,h)};
-  const c=frameCanvas(w,h),x=c.getContext('2d',{willReadFrequently:true}),end=Math.min(maxDur,v._dur||10),step=1/fps;
+  const c=frameCanvas(w,h),x=c.getContext('2d',{willReadFrequently:true}),full=v._dur||10,t0=start&&full>start+3?start:0,end=Math.min(t0+maxDur,full),step=1/fps;
   const pc=frameCanvas(w,h*4),px=pc.getContext('2d',{willReadFrequently:true});
-  for(let i=0;i<4;i++){await seekAll([v],end*(i+.5)/4);paint(px,h*i)}
-  const palette=quantize(px.getImageData(0,0,w,h*4).data,256,{format:'rgb565'}),gif=GIFEncoder();let next=0,frames=0;
+  for(let i=0;i<4;i++){await seekAll([v],t0+(end-t0)*(i+.5)/4);paint(px,h*i)}
+  const palette=quantize(px.getImageData(0,0,w,h*4).data,256,{format:'rgb565'}),gif=GIFEncoder();let next=t0,frames=0;
   const put=()=>{paint(x,0);gif.writeFrame(applyPalette(x.getImageData(0,0,w,h).data,palette,'rgb565'),w,h,{palette:frames?undefined:palette,delay:Math.round(1000/fps),repeat:0});frames++;next+=step};
-  if('requestVideoFrameCallback' in v){await seekAll([v],0);put();
+  if('requestVideoFrameCallback' in v){await seekAll([v],t0);put();
     await new Promise(res=>{let seen=performance.now(),done=false;const stop=()=>{if(done)return;done=true;v.pause();clearInterval(watch);res()};
-      const cb=(now,meta)=>{if(done)return;seen=performance.now();if(meta.mediaTime>=end-.001){stop();return}while(meta.mediaTime>=next&&next<end)put();v.requestVideoFrameCallback(cb)};
+      const cb=(now,meta)=>{if(done)return;seen=performance.now();if(meta.mediaTime>=end-.001){stop();return}
+        /* the video waits while a frame is being drawn, so slow pages or big videos never skip or repeat frames */
+        if(meta.mediaTime>=next){v.pause();while(meta.mediaTime>=next&&next<end)put();v.requestVideoFrameCallback(cb);seen=performance.now();v.play().catch(stop);return}
+        v.requestVideoFrameCallback(cb)};
       const watch=setInterval(()=>{if(v.ended||performance.now()-seen>4000)stop()},500);
       v.requestVideoFrameCallback(cb);v.onended=stop;v.playbackRate=1;v.play().catch(stop)})}
   while(next<end-step/2){await seekAll([v],next);put();if(frames%10===0)await sleep(0)}
@@ -3728,8 +3731,9 @@ async function renderMP4(page,T,cfg,dur,progress,{vids=[],loop=0}={}){
   const muxer=new Mp4Muxer.Muxer({target,video:{codec:'avc',width:1280,height:720},fastStart:'in-memory'});
   let err=null;const enc=new VideoEncoder({output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta),error:e=>{err=e}});enc.configure(cfg);
   const n=Math.ceil((loop||dur+HOLD)*FPS);
+  const bgV=isVid(T.bgImg)?T.bgImg:null;
   for(let i=0;i<n;i++){if(err)throw err;
-    const st=loop?dur+HOLD:Math.min(i/FPS,dur+HOLD);
+    const st=loop?dur+HOLD:Math.min(i/FPS,dur+HOLD);if(bgV&&i%2===0)await seekAll([bgV],i/FPS);
     x.setTransform(.8,0,0,.8,0,0);ST.render(x,page.style,page.f,st,T,{text:false});
     const fr=new VideoFrame(c,{timestamp:Math.round(i*1e6/FPS),duration:Math.round(1e6/FPS)});enc.encode(fr,{keyFrame:i%(FPS*2)===0});fr.close();
     while(enc.encodeQueueSize>8)await sleep(4);if(i%5===0){progress(i/n);await sleep(0)}}
@@ -3738,7 +3742,7 @@ async function renderGIF(page,T,dur,progress){
   const {GIFEncoder,quantize,applyPalette}=window.gifenc,w=960,h=540,fps=12,c=frameCanvas(w,h),x=c.getContext('2d',{willReadFrequently:true});
   const draw=t=>{x.setTransform(.6,0,0,.6,0,0);ST.render(x,page.style,page.f,t,T,{text:false});return x.getImageData(0,0,w,h).data};
   const palette=quantize(draw(dur+HOLD),256,{format:'rgb565'});const gif=GIFEncoder(),n=Math.ceil((dur+HOLD)*fps);
-  for(let i=0;i<n;i++){const data=draw(Math.min(i/fps,dur+HOLD));gif.writeFrame(applyPalette(data,palette,'rgb565'),w,h,{palette:i?undefined:palette,delay:Math.round(1000/fps),repeat:-1});
+  const bgV=isVid(T.bgImg)?T.bgImg:null;for(let i=0;i<n;i++){if(bgV)await seekAll([bgV],i/fps);const data=draw(Math.min(i/fps,dur+HOLD));gif.writeFrame(applyPalette(data,palette,'rgb565'),w,h,{palette:i?undefined:palette,delay:Math.round(1000/fps),repeat:-1});
     if(i%3===0){progress(i/n);await sleep(0)}}
   gif.finish();return gif.bytes()}
 
@@ -3876,8 +3880,8 @@ async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
   const meas=document.createElement('canvas').getContext('2d');const ln=LANG[lang]||'uz-Latn-UZ';
   const IMGS=new Map(),videoExts=new Set();let imgN=0,n=0;
   const VF=new Map(),useGif=(themeFor(pages[0]||null).videoMode||'gif')!=='video';
-  async function prepVideo(id,el,width=640){const key=id+'|'+(useGif?'g'+width:'v');if(VF.has(key))return VF.get(key);
-    if(useGif){const g=await videoGIF(el,width),k=++imgN,file=`imx_vgif${k}.gif`;zip.file('ppt/media/'+file,g.data);
+  async function prepVideo(id,el,width=640,maxDur=30){const key=id+'|'+(useGif?'g'+width:'v');if(VF.has(key))return VF.get(key);
+    if(useGif){const g=await videoGIF(el,width,{maxDur}),k=++imgN,file=`imx_vgif${k}.gif`;zip.file('ppt/media/'+file,g.data);
       const r={gif:true,file,vw:g.w,vh:g.h};VF.set(key,r);return r}
     const v=(await exportCopies({images:{k:el}}))[0];await seekAll([v],Math.min(.3,(v.duration||1)/2));
     const post=await encodeImage(v,false),vb=await videoBytes(el,vcfg),k=++imgN,file=`imx_vid${k}.${vb.ext}`,pf=`imx_vpost${k}.jpeg`;
@@ -3891,7 +3895,7 @@ async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
       /* collect the pictures first (encoding is async), then write the XML */
       const need=[];slides.forEach(s=>s.els.forEach(e=>{if(e.t==='pic')need.push([e.img,e.n==='logo',e.bg]);if(e.fillImg)need.push([e.fillImg,false])}));
       for(const [key,png,isBg] of need){const kk=key+'|'+T.accent+(png?'|png':'');if(IMGS.has(kk))continue;const src=MO.imgFor(key,T);if(!src){IMGS.set(kk,null);continue}
-        if(isVid(src)&&useGif){const g=await prepVideo(key,src,isBg?960:640);IMGS.set(kk,{file:g.file,w:g.vw,h:g.vh});continue}
+        if(isVid(src)&&useGif){const g=await prepVideo(key,src,isBg?800:640,isBg?15:30);IMGS.set(kk,{file:g.file,w:g.vw,h:g.vh});continue}
         if(isVid(src)){const v=(await exportCopies({images:{k:src}}))[0];await seekAll([v],Math.min(.3,(v._dur||2)/2));
           const enc=await encodeImage(v,false),vb=await videoBytes(src,vcfg),post=`imx_vpost${++imgN}.jpeg`,file=`imx_vid${imgN}.${vb.ext}`;
           zip.file('ppt/media/'+post,enc.data);zip.file('ppt/media/'+file,vb.data);videoExts.add(vb.ext);IMGS.set(kk,{file:post,video:file,w:enc.w,h:enc.h,dur:v._dur||600});continue}
@@ -3914,7 +3918,7 @@ async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
        (background video moving, everything else in place) takes over, so the background never freezes or stutters */
     const bgLive=themeFor(p).bgImg;
     if(isVid(bgLive)&&(T.bgVis??0)>0){const key='bgpage|'+i;
-      const g=await videoGIF(bgLive,960,{fps:10,maxDur:20,size:[960,540],draw:(cx,v,w,h)=>{cx.scale(w/1600,h/900);ST.render(cx,p.style,p.f,dur+HOLD,{...T,bgImg:v},{text:false})}});
+      const g=await videoGIF(bgLive,800,{fps:10,maxDur:15,start:dur,size:[800,450],draw:(cx,v,w,h)=>{cx.scale(w/1600,h/900);ST.render(cx,p.style,p.f,dur+HOLD,{...T,bgImg:v},{text:false})}});
       const k=++imgN,file=`imx_vgif${k}.gif`;zip.file('ppt/media/'+file,g.data);VF.set(key,1);
       media.over.unshift({img:key,x:0,y:0,w:1600,h:900,geom:{t:'rect'},at:dur,gif:true,file,vw:g.w,vh:g.h,fit:{z:1,x:.5,y:.5}})}
     if(vids.length)await seekAll(vids,.3);

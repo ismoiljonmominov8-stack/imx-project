@@ -83,8 +83,10 @@ node build.js
 ### Videos in PowerPoint: GIF (default) or Video
 Design → "Videos in PowerPoint". **GIF** (default) turns every video into a looping GIF picture:
 it starts by itself, repeats forever and never stops — no play button, no timing problems.
-GIFs are 10 frames/s, up to 60 s, 256 colours, so the file gets bigger. **Video** keeps the real
+GIFs are 10 frames/s, up to 30 s, 256 colours, so the file gets bigger. **Video** keeps the real
 MP4 (sharper, smaller) but depends on PowerPoint's own video player. The preview always shows the real video.
 
 **Background video:** when the background picture is a video, the page animation plays first and then a looping GIF of the
-finished page takes over, so the moving background never freezes or stutters (up to 20 s, then it repeats).
+finished page takes over, so the moving background never freezes or stutters. The background also moves during the page animation, and the loop
+continues from that exact moment (15 s loop, 800×450). Picture-place videos loop up to 30 s. Longer videos are cut so
+PowerPoint can play the GIFs smoothly (very big GIFs make PowerPoint lag).
