@@ -25,24 +25,28 @@ const dimsOf=el=>({w:el.videoWidth||el.naturalWidth||el.width,h:el.videoHeight||
 async function exportCopies(T){const made=new Map();
   for(const k in (T.images||{})){const el=T.images[k];if(!isVid(el))continue;
     if(!made.has(el)){const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='auto';v.src=el.src;
-      if(v.readyState<2)await Promise.race([once(v,'loadeddata'),sleep(10000)]);v._fit=el._fit;made.set(el,v)}
+      if(v.readyState<2)await Promise.race([once(v,'loadeddata'),sleep(10000)]);v._dur=await realDuration(v);v._fit=el._fit;made.set(el,v)}
     T.images[k]=made.get(el)}
   return [...made.values()]}
-async function seekAll(vids,t){await Promise.all(vids.map(v=>{const d=v.duration||1,tt=((t%d)+d)%d;if(Math.abs(v.currentTime-tt)<.002)return null;
+async function realDuration(v){if(v.readyState<1)await Promise.race([once(v,'loadedmetadata'),sleep(10000)]);
+  if(!(isFinite(v.duration)&&v.duration>0)){const p=Promise.race([once(v,'durationchange'),sleep(6000)]);try{v.currentTime=1e7}catch(_){}await p;
+    const q=Promise.race([once(v,'seeked'),sleep(3000)]);v.currentTime=0;await q}
+  return isFinite(v.duration)&&v.duration>0?v.duration:0}
+async function seekAll(vids,t){await Promise.all(vids.map(v=>{const d=v._dur||(isFinite(v.duration)&&v.duration)||1,tt=((t%d)+d)%d;if(Math.abs(v.currentTime-tt)<.002)return null;
   const p=Promise.race([once(v,'seeked'),sleep(2000)]);v.currentTime=tt;return p}))}
 const VEXT={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','video/x-m4v':'m4v'};
 async function videoBytes(el,cfg){const b=await (await fetch(el.src)).blob(),ext=VEXT[b.type]||'mp4';
   /* PowerPoint plays MP4 (H.264) everywhere; other formats (WebM, MOV...) are converted when the browser can encode */
   if(ext!=='mp4'&&cfg){try{return{data:await transcodeMP4(el,cfg),ext:'mp4'}}catch(e){console.warn('video convert failed',e)}}
   return{data:new Uint8Array(await b.arrayBuffer()),ext}}
-async function transcodeMP4(src,cfg,maxDur=30){
+async function transcodeMP4(src,cfg,maxDur=1800){
   const v=(await exportCopies({images:{k:src}}))[0],d0=dimsOf(v),k=Math.min(1,1280/d0.w,720/d0.h);
   const w=Math.max(2,Math.round(d0.w*k/2)*2),h=Math.max(2,Math.round(d0.h*k/2)*2);
   let c2={...cfg,width:w,height:h};try{if(!(await VideoEncoder.isConfigSupported(c2)).supported)c2={...cfg,codec:'avc1.42001f',width:w,height:h}}catch(_){}
   const c=frameCanvas(w,h),x=c.getContext('2d'),target=new Mp4Muxer.ArrayBufferTarget();
   const muxer=new Mp4Muxer.Muxer({target,video:{codec:'avc',width:w,height:h},fastStart:'in-memory'});
   let err=null;const enc=new VideoEncoder({output:(ch,meta)=>muxer.addVideoChunk(ch,meta),error:e=>{err=e}});enc.configure(c2);
-  const end=Math.min(maxDur,v.duration||3);
+  const end=Math.min(maxDur,v._dur||600);
   if('requestVideoFrameCallback' in v){await seekAll([v],0);let k=0,last=-1;
     await new Promise(res=>{const stop=()=>{v.pause();res()};
       const cb=(now,meta)=>{if(err||meta.mediaTime>=end||v.ended){stop();return}
@@ -104,7 +108,7 @@ function videoPicXML(id,o,mrid,vrid,prid){const f=o.fit||{z:1,x:.5,y:.5};
   const tr=o.w/o.h,ir=o.vw/o.vh;let vw=1,vh=1;if(ir>tr)vw=tr/ir;else vh=ir/tr;vw/=f.z;vh/=f.z;
   const l=(1-vw)*f.x,r=(1-vw)*(1-f.x),t=(1-vh)*f.y,b=(1-vh)*(1-f.y);
   const g=o.geom||{t:'rect'},e={t:g.t==='poly'?'poly':g.t,r:g.r,w:o.w,h:o.h,pts:g.pts?g.pts.map(([a,c])=>[a-o.x,c-o.y]):null};
-  return`<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="Video ${id}"><a:hlinkClick r:id="" action="ppaction://media"/></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="${vrid}"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="${mrid}"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="${prid}"/><a:srcRect l="${Math.round(l*1e5)}" t="${Math.round(t*1e5)}" r="${Math.round(r*1e5)}" b="${Math.round(b*1e5)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm${o.rot?` rot="${Math.round(((o.rot%360)+360)%360*60000)}"`:''}><a:off x="${E(o.x)}" y="${E(o.y)}"/><a:ext cx="${E(o.w)}" cy="${E(o.h)}"/></a:xfrm>${geomXML(e)}</p:spPr></p:pic>`}
+  return`<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="Video ${id}"></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="${vrid}"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="${mrid}"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="${prid}"/><a:srcRect l="${Math.round(l*1e5)}" t="${Math.round(t*1e5)}" r="${Math.round(r*1e5)}" b="${Math.round(b*1e5)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm${o.rot?` rot="${Math.round(((o.rot%360)+360)%360*60000)}"`:''}><a:off x="${E(o.x)}" y="${E(o.y)}"/><a:ext cx="${E(o.w)}" cy="${E(o.h)}"/></a:xfrm>${geomXML(e)}</p:spPr></p:pic>`}
 
 /* ---------- one slide ---------- */
 function textShape(id,s,fit,color,T,lang){
@@ -116,7 +120,7 @@ function textShape(id,s,fit,color,T,lang){
 function slideXML(page,T,media,lang,measure){
   const id={n:3},shapes=[],effects=[];let spid=3;
   const vid=2,picRels=media.type==='mp4'
-    ?`<p:pic><p:nvPicPr><p:cNvPr id="${vid}" name="Animation"><a:hlinkClick r:id="" action="ppaction://media"/></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="rId3"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="rId2"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="rId4"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`
+    ?`<p:pic><p:nvPicPr><p:cNvPr id="${vid}" name="Animation"></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="rId3"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="rId2"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="rId4"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`
     :`<p:pic><p:nvPicPr><p:cNvPr id="${vid}" name="Animation"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
   shapes.push(picRels);
   /* videos placed in picture places: real PowerPoint videos on top of the page animation */
@@ -168,7 +172,7 @@ function morphShapeXML(e,id,T,lang,rel,mult){
     const l=(1-vw)*f.x,r=(1-vw)*(1-f.x),t=(1-vh)*f.y,b=(1-vh)*(1-f.y),alpha=(e.a??1)*(e.bg?1:f.o);
     const geo=e.r?`<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.round(Math.min(.5,e.r)*100000)}"/></a:avLst></a:prstGeom>`:'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
     if(im.video){VIDS.push({sp:id,dur:im.video.dur});
-      return`<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="!!${esc(e.n)}"><a:hlinkClick r:id="" action="ppaction://media"/></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="${im.video.link}"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="${im.video.media}"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}"/><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(r*100000)}" b="${Math.round(b*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
+      return`<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="!!${esc(e.n)}"></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="${im.video.link}"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="${im.video.media}"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}"/><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(r*100000)}" b="${Math.round(b*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
     return`<p:pic><p:nvPicPr>${nv}<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}">${alpha<1?`<a:alphaModFix amt="${Math.round(clampA(alpha)*100000)}"/>`:''}</a:blip><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(r*100000)}" b="${Math.round(b*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
   if(e.t==='text'){const sz=Math.max(100,Math.round(window.IMXMorph.textPt(e,T)*100)),algn={l:'l',c:'ctr',r:'r'}[e.al||'l'],anchor={t:'t',m:'ctr',b:'b'}[e.va||'t'];
     const face=esc(e.font==='head'?(T.headFont||'Georgia'):(T.bodyFont||'Calibri'));
@@ -214,7 +218,7 @@ async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
     const v=(await exportCopies({images:{k:el}}))[0];await seekAll([v],Math.min(.3,(v.duration||1)/2));
     const post=await encodeImage(v,false),vb=await videoBytes(el,vcfg),k=++imgN,file=`imx_vid${k}.${vb.ext}`,pf=`imx_vpost${k}.jpeg`;
     zip.file('ppt/media/'+file,vb.data);zip.file('ppt/media/'+pf,post.data);videoExts.add(vb.ext);
-    const r={file,post:pf,vw:post.w,vh:post.h,dur:v.duration||5};VF.set(id,r);return r}
+    const r={file,post:pf,vw:post.w,vh:post.h,dur:v._dur||600};VF.set(id,r);return r}
   const L7='<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout7.xml"/>';
   const relsDoc=body=>`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${L7}${body}</Relationships>`;
   for(let i=0;i<pages.length;i++){const p=pages[i],T=themeFor(p),st=ST.S[p.style];
@@ -223,9 +227,9 @@ async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
       /* collect the pictures first (encoding is async), then write the XML */
       const need=[];slides.forEach(s=>s.els.forEach(e=>{if(e.t==='pic')need.push([e.img,e.n==='logo']);if(e.fillImg)need.push([e.fillImg,false])}));
       for(const [key,png] of need){const kk=key+'|'+T.accent+(png?'|png':'');if(IMGS.has(kk))continue;const src=MO.imgFor(key,T);if(!src){IMGS.set(kk,null);continue}
-        if(isVid(src)){const v=(await exportCopies({images:{k:src}}))[0];await seekAll([v],Math.min(1,(v.duration||2)/2));
+        if(isVid(src)){const v=(await exportCopies({images:{k:src}}))[0];await seekAll([v],Math.min(.3,(v._dur||2)/2));
           const enc=await encodeImage(v,false),vb=await videoBytes(src,vcfg),post=`imx_vpost${++imgN}.jpeg`,file=`imx_vid${imgN}.${vb.ext}`;
-          zip.file('ppt/media/'+post,enc.data);zip.file('ppt/media/'+file,vb.data);videoExts.add(vb.ext);IMGS.set(kk,{file:post,video:file,w:enc.w,h:enc.h,dur:v.duration||5});continue}
+          zip.file('ppt/media/'+post,enc.data);zip.file('ppt/media/'+file,vb.data);videoExts.add(vb.ext);IMGS.set(kk,{file:post,video:file,w:enc.w,h:enc.h,dur:v._dur||600});continue}
         const enc=await encodeImage(src,png),file=`imx_img${++imgN}.${png?'png':'jpeg'}`;zip.file('ppt/media/'+file,enc.data);IMGS.set(kk,{file,w:enc.w,h:enc.h})}
       for(const s of slides){n++;const rels=[],rid={};
         const rel=(key,png)=>{const im=IMGS.get(key+'|'+T.accent+(png?'|png':''));if(!im)return null;
@@ -257,6 +261,9 @@ async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
   def('mp4','video/mp4');def('gif','image/gif');if(videoExts.has('webm'))def('webm','video/webm');if(videoExts.has('mov'))def('mov','video/quicktime');if(videoExts.has('m4v'))def('m4v','video/x-m4v');def('jpeg','image/jpeg');def('png','image/png');
   ct=ct.replace('</Types>',idx.map(i=>`<Override PartName="/ppt/slides/slide${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('')+'</Types>');
   zip.file('[Content_Types].xml',ct);
+  let pp=await zip.file('ppt/presProps.xml').async('string');
+  if(!pp.includes('showMediaCtrls'))pp=pp.replace('<p:extLst>','<p:showPr showNarration="1"><p:sldAll/><p:penClr><a:prstClr val="red"/></p:penClr><p:extLst><p:ext uri="{2FDB2607-1784-4EEB-B798-7EB5836EED8A}"><p14:showMediaCtrls xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" val="0"/></p:ext></p:extLst></p:showPr><p:extLst>');
+  zip.file('ppt/presProps.xml',pp);
   let core=await zip.file('docProps/core.xml').async('string');core=core.replace(/<dc:title>[^<]*<\/dc:title>|<dc:title\/>/,'').replace('</cp:coreProperties>',`<dc:title>${esc(title||'IMX')}</dc:title></cp:coreProperties>`);zip.file('docProps/core.xml',core);
   onProgress({slide:pages.length,total:pages.length,frac:1,mode,packing:true});
   return {blob:await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation',compression:'STORE'}),mode:needVideo?mode:'shapes'}}

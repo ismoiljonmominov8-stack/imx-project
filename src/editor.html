@@ -272,11 +272,15 @@ const isVideoId=id=>typeof S.images[id]==='string'&&S.images[id].startsWith('vid
 function imgObj(id){if(!id||!S.images[id])return null;
   if(isVideoId(id)){if(!VIDEOS[id])return null;
     if(!IMGS[id]){const v=document.createElement('video');v.muted=true;v.defaultMuted=true;v.loop=true;v.playsInline=true;v.autoplay=true;v.preload='auto';
-      v.src=URL.createObjectURL(VIDEOS[id]);v.oncanplay=()=>draw();v.play().catch(()=>{});IMGS[id]=v}
-    const v=IMGS[id];if(v.paused)v.play().catch(()=>{});return v.readyState>=2?v:null}
+      v.disablePictureInPicture=true;v.src=URL.createObjectURL(VIDEOS[id]);v.oncanplay=()=>draw();
+      /* the browser pauses videos it thinks nobody sees, which makes the preview stutter: keep them in the page, tiny and almost invisible */
+      vidPool().appendChild(v);v.play().catch(()=>{});IMGS[id]=v}
+    const v=IMGS[id];if(v.paused&&!v._kick){v._kick=1;v.play().catch(()=>{}).finally(()=>{v._kick=0})}return v.readyState>=2?v:null}
   if(!IMGS[id]){const im=new Image();im.onload=()=>draw();im.src=S.images[id];IMGS[id]=im}return IMGS[id].complete&&IMGS[id].naturalWidth?IMGS[id]:null}
+function vidPool(){let d=document.getElementById('vidpool');if(!d){d=document.createElement('div');d.id='vidpool';d.setAttribute('aria-hidden','true');
+  d.style.cssText='position:fixed;left:0;bottom:0;width:8px;height:8px;opacity:.01;overflow:hidden;pointer-events:none;z-index:0';document.body.appendChild(d)}return d}
 function mediaSrc(id){if(!id||!S.images[id])return'';if(isVideoId(id)){imgObj(id);return IMGS[id]?IMGS[id].src:''}return S.images[id]}
-function clearMedia(){for(const k in IMGS){const o=IMGS[k];if(o&&o.tagName==='VIDEO'){o.pause();URL.revokeObjectURL(o.src)}delete IMGS[k]}}
+function clearMedia(){for(const k in IMGS){const o=IMGS[k];if(o&&o.tagName==='VIDEO'){o.pause();URL.revokeObjectURL(o.src);o.remove()}delete IMGS[k]}}
 async function readImage(file,max=1920){
   const url=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)});
   if(/svg|gif/.test(file.type))return url;
