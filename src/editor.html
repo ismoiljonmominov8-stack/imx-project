@@ -254,6 +254,9 @@ Object.assign(UI.en,{changeImg:'Change picture',imgVis:'Visibility',imgZoom:'Zoo
 Object.assign(UI.uz,{addImg:'+ Rasm yoki video',headPt:'Sarlavha oʻlchami (pt)',bodyPt:'Matn oʻlchami (pt)',fitTxt:'Matn joyiga sigʻmasa',fitYes:'Avtomatik kichraytirish',fitNo:'Oʻlchamni saqlash',bigVideo:'Video juda katta (150 MB dan oshmasin)'});
 Object.assign(UI.ru,{addImg:'+ Фото или видео',headPt:'Размер заголовка (pt)',bodyPt:'Размер текста (pt)',fitTxt:'Если текст не помещается',fitYes:'Уменьшать автоматически',fitNo:'Сохранять размер',bigVideo:'Видео слишком большое (не более 150 МБ)'});
 Object.assign(UI.en,{addImg:'+ Picture or video',headPt:'Heading size (pt)',bodyPt:'Text size (pt)',fitTxt:'If text does not fit',fitYes:'Shrink automatically',fitNo:'Keep the size',bigVideo:'The video is too big (150 MB max)'});
+Object.assign(UI.uz,{vidMode:'Videolar PowerPoint\'da',vidGif:'GIF — doim oʻzi takrorlanadi',vidVideo:'Video — yuqori sifat'});
+Object.assign(UI.ru,{vidMode:'Видео в PowerPoint',vidGif:'GIF — всегда повторяется само',vidVideo:'Видео — высокое качество'});
+Object.assign(UI.en,{vidMode:'Videos in PowerPoint',vidGif:'GIF — always loops by itself',vidVideo:'Video — high quality'});
 const t=(k,v)=>{let s=UI[ui][k]??UI.en[k]??k;if(v)for(const n in v)s=s.replace('{'+n+'}',v[n]);return s};
 
 /* ---------- state ---------- */
@@ -261,7 +264,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clone=o=>JSON.parse(JSON.stringify(o));
 const uid=()=>Math.random().toString(36).slice(2,9);
-function blank(){return{v:2,lang:'uz',title:'',theme:{preset:'navy',...ST.THEMES.navy,name:undefined,headFont:'Georgia',bodyFont:'Calibri',size:'M',headPt:38,bodyPt:16,fit:'yes',effect:'rise',speed:'normal',bgImg:'',bgVis:35},pages:[],images:{}}}
+function blank(){return{v:2,lang:'uz',title:'',theme:{preset:'navy',...ST.THEMES.navy,name:undefined,headFont:'Georgia',bodyFont:'Calibri',size:'M',headPt:38,bodyPt:16,fit:'yes',videoMode:'gif',effect:'rise',speed:'normal',bgImg:'',bgVis:35},pages:[],images:{}}}
 let S=blank(),sel='theme',tab='content';
 
 /* pictures: stored as data URLs in the project, kept as Image objects for drawing */
@@ -417,6 +420,7 @@ function themeForm(root,o,page){
     <div class="row2"><label class="f"><span>${esc(t('headPt'))}</span><input type="number" min="6" max="200" step="1" list="ptList" data-n="headPt" value="${esc(o.headPt??'')}" placeholder="${page?esc(S.theme.headPt):''}"></label>
     <label class="f"><span>${esc(t('bodyPt'))}</span><input type="number" min="6" max="200" step="1" list="ptList" data-n="bodyPt" value="${esc(o.bodyPt??'')}" placeholder="${page?esc(S.theme.bodyPt):''}"></label></div>
     <label class="f"><span>${esc(t('fitTxt'))}</span><select data-k="fit">${dflt}${opt('yes',t('fitYes'),o.fit)}${opt('no',t('fitNo'),o.fit)}</select></label>
+    ${page?'':`<label class="f"><span>${esc(t('vidMode'))}</span><select data-k="videoMode">${opt('gif',t('vidGif'),o.videoMode||'gif')}${opt('video',t('vidVideo'),o.videoMode)}</select></label>`}
     <datalist id="ptList">${[8,9,10,11,12,14,16,18,20,22,24,26,28,32,36,40,44,48,54,60,66,72,80,88,96,110,128].map(v=>`<option value="${v}">`).join('')}</datalist></div>`;
   h+=`<div class="group"><b>${esc(t('anim'))}</b><div class="row2">
     <label class="f"><span>${esc(t('effect'))}</span><select data-k="effect">${dflt}${ST.EFFECTS.map(e=>opt(e,t('e_'+e),o.effect)).join('')}</select></label>
@@ -489,6 +493,7 @@ function load(o){const b=blank();S={...b,...o,theme:{...b.theme,...(o.theme||{})
   /* projects from before point sizes: turn S / M / L into points */
   const pts=(sz)=>{const m=ST.SIZES[sz]||1;return{headPt:Math.round(ST.BASE_PT.head*m),bodyPt:Math.round(ST.BASE_PT.body*m)}};
   if(!(o.theme||{}).headPt)Object.assign(S.theme,pts(S.theme.size));
+  if(!S.theme.videoMode)S.theme.videoMode='gif';
   (S.pages||[]).forEach(p=>{if(p.ov&&p.ov.size&&!p.ov.headPt){Object.assign(p.ov,pts(p.ov.size));delete p.ov.size}});
   S.pages.forEach(p=>{p.id=p.id||uid();p.ov=p.ov||{};if(!ST.S[p.style])p.style='split'});
   clearMedia();sel=S.pages[0]?.id||'theme';tab='content';renderList();renderSide();replay();saveSoon()}

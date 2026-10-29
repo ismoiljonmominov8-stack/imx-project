@@ -79,3 +79,9 @@ After changing any of these, rebuild `index.html`:
 ```
 node build.js
 ```
+
+### Videos in PowerPoint: GIF (default) or Video
+Design → "Videos in PowerPoint". **GIF** (default) turns every video into a looping GIF picture:
+it starts by itself, repeats forever and never stops — no play button, no timing problems.
+GIFs are 10 frames/s, up to 60 s, 256 colours, so the file gets bigger. **Video** keeps the real
+MP4 (sharper, smaller) but depends on PowerPoint's own video player. The preview always shows the real video.
