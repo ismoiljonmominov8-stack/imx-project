@@ -228,16 +228,26 @@ function shapePath(x,e){const{w,h}=e;x.beginPath();
   else if(e.t==='poly'){e.pts.forEach(([a,b],i)=>i?x.lineTo(a,b):x.moveTo(a,b));x.closePath()}
   else if(e.t==='wave'){const t=e.y;x.moveTo(0,e.yl-t);x.bezierCurveTo(w*.25,e.yl-t,w*.32,e.ym-t,w*.5,e.ym-t);x.bezierCurveTo(w*.68,e.ym-t,w*.75,e.yr-t,w,e.yr-t);x.lineTo(w,h);x.lineTo(0,h);x.closePath()}
   else x.rect(0,0,w,h)}
+const _mc=document.createElement('canvas').getContext('2d');
+const _ptCache=new Map();
+function textPt(e,T){const R=ST.ratios(T),base=e.sz*(e.font==='head'?R.head:R.body);
+  if(T.fit===false||T.fit==='no'||!e.tx)return base;
+  const key=[e.tx,base,e.w,e.h,e.b,e.sp,e.lh,fontOf(e,T)].join('|');if(_ptCache.has(key))return _ptCache.get(key);
+  if(_ptCache.size>4000)_ptCache.clear();const v=_textPt(e,T,base);_ptCache.set(key,v);return v}
+function _textPt(e,T,pt){
+  for(let i=0;i<30&&pt>6;i++){const px=pt*PX;_mc.font=`${e.b?700:400} ${px}px ${fontOf(e,T)}`;if('letterSpacing' in _mc)_mc.letterSpacing=((e.sp||0)*PX)+'px';
+    const n=wrap(_mc,e.tx,e.w+2).length;if(n*px*1.2*(e.lh||1)<=Math.max(e.h,px*1.25)+2&&wrap(_mc,e.tx,1e9).every(l=>_mc.measureText(l).width<=e.w+2||l.split(/\s+/).length>1))return pt;pt*=.94}
+  return pt}
 function drawEl(x,e,T,alpha=1,mult=1){if(alpha<=0.003||e.w<.5&&e.h<.5)return;x.save();x.globalAlpha=alpha*(e.t==='pic'||e.t==='text'?1:(e.a??1));
   x.translate(e.x+e.w/2,e.y+e.h/2);if(e.rot)x.rotate(e.rot*Math.PI/180);if(e.sc&&e.sc!==1)x.scale(e.sc,e.sc);x.translate(-e.w/2,-e.h/2);
   if(e.t==='pic'){const im=imgFor(e.img,T);x.globalAlpha=alpha*(e.a??1);x.beginPath();x.roundRect(0,0,e.w,e.h,Math.min(e.w,e.h)*(e.r||0));x.clip();
-    if(im){const f=fitOf(im),k=Math.max(e.w/im.width,e.h/im.height)*f.z;if(!e.bg)x.globalAlpha*=f.o;x.drawImage(im,(e.w-im.width*k)*f.x,(e.h-im.height*k)*f.y,im.width*k,im.height*k)}else{x.fillStyle='#334';x.fillRect(0,0,e.w,e.h)}}
-  else if(e.t==='text'){if(e.tx){const size=e.sz*PX*mult;x.font=`${e.b?700:400} ${size}px ${fontOf(e,T)}`;if('letterSpacing' in x)x.letterSpacing=((e.sp||0)*PX)+'px';
+    if(im){const f=fitOf(im),[W0,H0]=ST.dimsOf(im),k=Math.max(e.w/W0,e.h/H0)*f.z;if(!e.bg)x.globalAlpha*=f.o;x.drawImage(im,(e.w-W0*k)*f.x,(e.h-H0*k)*f.y,W0*k,H0*k)}else{x.fillStyle='#334';x.fillRect(0,0,e.w,e.h)}}
+  else if(e.t==='text'){if(e.tx){const size=textPt(e,T)*PX;x.font=`${e.b?700:400} ${size}px ${fontOf(e,T)}`;if('letterSpacing' in x)x.letterSpacing=((e.sp||0)*PX)+'px';
     const lines=wrap(x,e.tx,e.w+2),lh=size*1.2*(e.lh||1),bh=lines.length*lh,y0=e.va==='m'?(e.h-bh)/2:e.va==='b'?e.h-bh:0;
     const paint=ctx=>{ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.direction='ltr';lines.forEach((ln,i)=>{const lw=ctx.measureText(ln).width,X=e.al==='c'?(e.w-lw)/2:e.al==='r'?e.w-lw:0;ctx.fillText(ln,X,y0+i*lh+size*.95)})};
     const im=e.fillImg&&imgFor(e.fillImg,T);
     if(im){const c2=document.createElement('canvas');c2.width=Math.ceil(e.w);c2.height=Math.ceil(e.h);const y=c2.getContext('2d');y.font=x.font;if('letterSpacing' in y)y.letterSpacing=x.letterSpacing;y.fillStyle='#000';paint(y);
-      y.globalCompositeOperation='source-in';const k=Math.max(e.w/im.width,e.h/im.height);y.drawImage(im,(e.w-im.width*k)/2,(e.h-im.height*k)/2,im.width*k,im.height*k);x.drawImage(c2,0,0)}
+      y.globalCompositeOperation='source-in';const [W0,H0]=ST.dimsOf(im),k=Math.max(e.w/W0,e.h/H0);y.drawImage(im,(e.w-W0*k)/2,(e.h-H0*k)/2,W0*k,H0*k);x.drawImage(c2,0,0)}
     else{x.fillStyle=e.col;paint(x)}}}
   else{shapePath(x,e);if(e.fill){x.fillStyle=e.fill;x.fill()}if(e.line){x.globalAlpha=alpha;x.strokeStyle=e.line;x.lineWidth=(e.lw||1)*PX;x.stroke()}}
   x.restore()}
@@ -279,5 +289,5 @@ ORDER.forEach(id=>{ST.S[id]={...M[id],id,kind:'morph',dur:0,durFor:f=>durOf(id,f
 const baseRender=ST.render;
 ST.render=function(ctx,id,f,t,T,o){if(ST.S[id]&&ST.S[id].kind==='morph'){ctx.save();render(ctx,id,f,t,T);ctx.restore();return}return baseRender(ctx,id,f,t,T,o)};
 
-window.IMXMorph={fitOf,timeAtSlide,M,ORDER,TILE,slidesFor,render,durOf,genImage,imgFor,palette,PX};
+window.IMXMorph={textPt,fitOf,timeAtSlide,M,ORDER,TILE,slidesFor,render,durOf,genImage,imgFor,palette,PX};
 })();

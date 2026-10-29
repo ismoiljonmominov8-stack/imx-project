@@ -18,17 +18,49 @@ async function pickCodec(){
   for(const codec of ['avc1.640028','avc1.4d0028','avc1.42001f']){
     try{const c={codec,width:1280,height:720,bitrate:5e6,framerate:FPS,avc:{format:'avc'}};if((await VideoEncoder.isConfigSupported(c)).supported)return c}catch(_){}}
   return null}
+/* videos in picture slots: the export works on its own copies so the live preview is not disturbed */
+const isVid=el=>typeof HTMLVideoElement!=='undefined'&&el instanceof HTMLVideoElement;
+const once=(el,ev)=>new Promise(r=>el.addEventListener(ev,r,{once:true}));
+const dimsOf=el=>({w:el.videoWidth||el.naturalWidth||el.width,h:el.videoHeight||el.naturalHeight||el.height});
+async function exportCopies(T){const made=new Map();
+  for(const k in (T.images||{})){const el=T.images[k];if(!isVid(el))continue;
+    if(!made.has(el)){const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='auto';v.src=el.src;
+      if(v.readyState<2)await Promise.race([once(v,'loadeddata'),sleep(10000)]);v._fit=el._fit;made.set(el,v)}
+    T.images[k]=made.get(el)}
+  return [...made.values()]}
+async function seekAll(vids,t){await Promise.all(vids.map(v=>{const d=v.duration||1,tt=((t%d)+d)%d;if(Math.abs(v.currentTime-tt)<.002)return null;
+  const p=Promise.race([once(v,'seeked'),sleep(2000)]);v.currentTime=tt;return p}))}
+const VEXT={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','video/x-m4v':'m4v'};
+async function videoBytes(el,cfg){const b=await (await fetch(el.src)).blob(),ext=VEXT[b.type]||'mp4';
+  /* PowerPoint plays MP4 (H.264) everywhere; other formats (WebM, MOV...) are converted when the browser can encode */
+  if(ext!=='mp4'&&cfg){try{return{data:await transcodeMP4(el,cfg),ext:'mp4'}}catch(e){console.warn('video convert failed',e)}}
+  return{data:new Uint8Array(await b.arrayBuffer()),ext}}
+async function transcodeMP4(src,cfg,maxDur=30){
+  const v=(await exportCopies({images:{k:src}}))[0],d0=dimsOf(v),k=Math.min(1,1280/d0.w,720/d0.h);
+  const w=Math.max(2,Math.round(d0.w*k/2)*2),h=Math.max(2,Math.round(d0.h*k/2)*2);
+  let c2={...cfg,width:w,height:h};try{if(!(await VideoEncoder.isConfigSupported(c2)).supported)c2={...cfg,codec:'avc1.42001f',width:w,height:h}}catch(_){}
+  const c=frameCanvas(w,h),x=c.getContext('2d'),target=new Mp4Muxer.ArrayBufferTarget();
+  const muxer=new Mp4Muxer.Muxer({target,video:{codec:'avc',width:w,height:h},fastStart:'in-memory'});
+  let err=null;const enc=new VideoEncoder({output:(ch,meta)=>muxer.addVideoChunk(ch,meta),error:e=>{err=e}});enc.configure(c2);
+  const n=Math.max(1,Math.floor(Math.min(maxDur,v.duration||3)*FPS));
+  for(let i=0;i<n;i++){if(err)throw err;await seekAll([v],i/FPS);x.drawImage(v,0,0,w,h);
+    const fr=new VideoFrame(c,{timestamp:Math.round(i*1e6/FPS),duration:Math.round(1e6/FPS)});enc.encode(fr,{keyFrame:i%(FPS*2)===0});fr.close();
+    while(enc.encodeQueueSize>8)await sleep(4)}
+  await enc.flush();enc.close();muxer.finalize();if(err)throw err;return new Uint8Array(target.buffer)}
 function frameCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c}
-async function posterOf(page,T){const c=frameCanvas(1280,720),x=c.getContext('2d');x.setTransform(.8,0,0,.8,0,0);
-  ST.render(x,page.style,page.f,0,T,{text:false});return new Uint8Array(await (await new Promise(r=>c.toBlob(r,'image/jpeg',.88))).arrayBuffer())}
-async function renderMP4(page,T,cfg,dur,progress){
+async function posterOf(page,T,at=0,vids=[],vt=at){const c=frameCanvas(1280,720),x=c.getContext('2d');x.setTransform(.8,0,0,.8,0,0);
+  if(vids.length)await seekAll(vids,vt);ST.render(x,page.style,page.f,at,T,{text:false});return new Uint8Array(await (await new Promise(r=>c.toBlob(r,'image/jpeg',.88))).arrayBuffer())}
+/* intro: the page animation; loop: the finished page while the videos in it keep playing */
+async function renderMP4(page,T,cfg,dur,progress,{vids=[],loop=0}={}){
   const c=frameCanvas(1280,720),x=c.getContext('2d',{willReadFrequently:false});x.setTransform(.8,0,0,.8,0,0);
   const target=new Mp4Muxer.ArrayBufferTarget();
   const muxer=new Mp4Muxer.Muxer({target,video:{codec:'avc',width:1280,height:720},fastStart:'in-memory'});
   let err=null;const enc=new VideoEncoder({output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta),error:e=>{err=e}});enc.configure(cfg);
-  const n=Math.ceil((dur+HOLD)*FPS);
+  const n=Math.ceil((loop||dur+HOLD)*FPS);
   for(let i=0;i<n;i++){if(err)throw err;
-    x.setTransform(.8,0,0,.8,0,0);ST.render(x,page.style,page.f,Math.min(i/FPS,dur+HOLD),T,{text:false});
+    const st=loop?dur+HOLD:Math.min(i/FPS,dur+HOLD),vt=loop?dur+HOLD+i/FPS:i/FPS;
+    if(vids.length)await seekAll(vids,vt);
+    x.setTransform(.8,0,0,.8,0,0);ST.render(x,page.style,page.f,st,T,{text:false});
     const fr=new VideoFrame(c,{timestamp:Math.round(i*1e6/FPS),duration:Math.round(1e6/FPS)});enc.encode(fr,{keyFrame:i%(FPS*2)===0});fr.close();
     while(enc.encodeQueueSize>8)await sleep(4);if(i%5===0){progress(i/n);await sleep(0)}}
   await enc.flush();enc.close();muxer.finalize();if(err)throw err;return new Uint8Array(target.buffer)}
@@ -73,6 +105,7 @@ function slideXML(page,T,media,lang,measure){
     ?`<p:pic><p:nvPicPr><p:cNvPr id="${vid}" name="Animation"><a:hlinkClick r:id="" action="ppaction://media"/></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="rId3"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="rId2"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="rId4"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`
     :`<p:pic><p:nvPicPr><p:cNvPr id="${vid}" name="Animation"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
   shapes.push(picRels);
+  if(media.loop)shapes.push(`<p:pic><p:nvPicPr><p:cNvPr id="90" name="Video loop"><a:hlinkClick r:id="" action="ppaction://media"/></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="rId6"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="rId5"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="rId7"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`);
   const slots=ST.slotsOf(page.style,page.f);
   slots.forEach(s=>{const sid=spid++,fit=measure(s),color=measure.color(s);shapes.push(textShape(sid,s,fit,color,T,lang));effects.push([sid,s.at])});
   /* timing: the video plays from the start; each text box enters at its own moment */
@@ -80,8 +113,12 @@ function slideXML(page,T,media,lang,measure){
   if(media.type==='mp4'){const a=id.n++,b=id.n++;
     inner+=`<p:par><p:cTn id="${a}" presetID="1" presetClass="mediacall" presetSubtype="0" fill="hold" nodeType="afterEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst><p:cmd type="call" cmd="playFrom(0.0)"><p:cBhvr><p:cTn id="${b}" dur="${Math.round(media.dur*1000)}" fill="hold"/><p:tgtEl><p:spTgt spid="${vid}"/></p:tgtEl></p:cBhvr></p:cmd></p:childTnLst></p:cTn></p:par>`}
   effects.forEach(([sid,at],i)=>{inner+=effectXML(T.effect||'fade',sid,at,T.speed,media.type!=='mp4'&&i===0,id)});
+  if(media.loop){const D=Math.round(media.dur*1000);
+    inner+=`<p:par><p:cTn id="${id.n++}" presetID="1" presetClass="entr" presetSubtype="0" fill="hold" grpId="0" nodeType="withEffect"><p:stCondLst><p:cond delay="${D}"/></p:stCondLst><p:childTnLst><p:set><p:cBhvr><p:cTn id="${id.n++}" dur="1" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="90"/></p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set></p:childTnLst></p:cTn></p:par>`;
+    inner+=`<p:par><p:cTn id="${id.n++}" presetID="1" presetClass="mediacall" presetSubtype="0" fill="hold" nodeType="withEffect"><p:stCondLst><p:cond delay="${D}"/></p:stCondLst><p:childTnLst><p:cmd type="call" cmd="playFrom(0.0)"><p:cBhvr><p:cTn id="${id.n++}" dur="${Math.round(media.loopDur*1000)}" fill="hold"/><p:tgtEl><p:spTgt spid="90"/></p:tgtEl></p:cBhvr></p:cmd></p:childTnLst></p:cTn></p:par>`}
   let timing='';
-  if(inner){const mediaNode=media.type==='mp4'?`<p:video><p:cMediaNode vol="80000" mute="1"><p:cTn id="${id.n++}" fill="hold" display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="${vid}"/></p:tgtEl></p:cMediaNode></p:video>`:'';
+  if(inner){const mediaNode=(media.type==='mp4'?`<p:video><p:cMediaNode vol="80000" mute="1"><p:cTn id="${id.n++}" fill="hold" display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="${vid}"/></p:tgtEl></p:cMediaNode></p:video>`:'')
+      +(media.loop?`<p:video><p:cMediaNode vol="0" mute="1"><p:cTn id="${id.n++}" repeatCount="indefinite" fill="hold" display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="90"/></p:tgtEl></p:cMediaNode></p:video>`:'');
     timing=`<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst><p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/><p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst><p:childTnLst><p:par><p:cTn id="4" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>${inner}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq>${mediaNode}</p:childTnLst></p:cTn></p:par></p:tnLst>${effects.length?`<p:bldLst>${effects.map(([sid])=>`<p:bldP spid="${sid}" grpId="0"/>`).join('')}</p:bldLst>`:''}</p:timing>`}
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld ${NS}><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="${hex(ST.mix(T.bg,'#000000',.6))}"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>${shapes.join('')}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr><p:transition spd="med"><p:fade/></p:transition>${timing}</p:sld>`}
 function slideRels(i,media){
@@ -89,7 +126,8 @@ function slideRels(i,media){
   const body=media.type==='mp4'
     ?`<Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2007/relationships/media" Target="../media/media${i}.mp4"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="../media/media${i}.mp4"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/poster${i}.jpeg"/>`
     :`<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/anim${i}.gif"/>`;
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${L}${body}</Relationships>`}
+  const loop=media.loop?`<Relationship Id="rId5" Type="http://schemas.microsoft.com/office/2007/relationships/media" Target="../media/loop${i}.mp4"/><Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="../media/loop${i}.mp4"/><Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/looppost${i}.jpeg"/>`:'';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${L}${body}${loop}</Relationships>`}
 
 /* ---------- Morph pages (templates 24-33): native shapes, Morph between slides ---------- */
 const MORPH_TR=d=>`<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:p159="http://schemas.microsoft.com/office/powerpoint/2015/09/main" Requires="p159"><p:transition xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" spd="slow" p14:dur="${Math.round(d*1000)}"><p159:morph option="byObject"/></p:transition></mc:Choice><mc:Fallback><p:transition spd="slow"><p:fade/></p:transition></mc:Fallback></mc:AlternateContent>`;
@@ -114,8 +152,10 @@ function morphShapeXML(e,id,T,lang,rel,mult){
     const tr=e.w/e.h,ir=im.w/im.h;let vw=1,vh=1;if(ir>tr)vw=tr/ir;else vh=ir/tr;vw/=f.z;vh/=f.z;
     const l=(1-vw)*f.x,r=(1-vw)*(1-f.x),t=(1-vh)*f.y,b=(1-vh)*(1-f.y),alpha=(e.a??1)*(e.bg?1:f.o);
     const geo=e.r?`<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.round(Math.min(.5,e.r)*100000)}"/></a:avLst></a:prstGeom>`:'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
+    if(im.video){VIDS.push({sp:id,dur:im.video.dur});
+      return`<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="!!${esc(e.n)}"><a:hlinkClick r:id="" action="ppaction://media"/></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr><a:videoFile r:link="${im.video.link}"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="${im.video.media}"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}"/><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(r*100000)}" b="${Math.round(b*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
     return`<p:pic><p:nvPicPr>${nv}<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${im.rid}">${alpha<1?`<a:alphaModFix amt="${Math.round(clampA(alpha)*100000)}"/>`:''}</a:blip><a:srcRect l="${Math.round(l*100000)}" t="${Math.round(t*100000)}" r="${Math.round(r*100000)}" b="${Math.round(b*100000)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(e)}${geo}</p:spPr></p:pic>`}
-  if(e.t==='text'){const sz=Math.max(100,Math.round(e.sz*mult*100)),algn={l:'l',c:'ctr',r:'r'}[e.al||'l'],anchor={t:'t',m:'ctr',b:'b'}[e.va||'t'];
+  if(e.t==='text'){const sz=Math.max(100,Math.round(window.IMXMorph.textPt(e,T)*100)),algn={l:'l',c:'ctr',r:'r'}[e.al||'l'],anchor={t:'t',m:'ctr',b:'b'}[e.va||'t'];
     const face=esc(e.font==='head'?(T.headFont||'Georgia'):(T.bodyFont||'Calibri'));
     let fill=fillXML(e.col);if(e.fillImg){const im=rel(e.fillImg);if(im)fill=`<a:blipFill dpi="0" rotWithShape="1"><a:blip r:embed="${im.rid}"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>`}
     const rpr=`<a:rPr lang="${lang}" sz="${sz}" b="${e.b?1:0}"${e.sp?` spc="${Math.round(e.sp*100)}"`:''} dirty="0">${fill}<a:latin typeface="${face}"/><a:cs typeface="${face}"/></a:rPr>`;
@@ -123,11 +163,13 @@ function morphShapeXML(e,id,T,lang,rel,mult){
     return`<p:sp><p:nvSpPr>${nv}<p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(e)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="${anchor}" rtlCol="0"><a:noAutofit/></a:bodyPr><a:lstStyle/>${paras}</p:txBody></p:sp>`}
   return`<p:sp><p:nvSpPr>${nv}<p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(e)}${geomXML(e)}${fillXML(e.fill,e.a??1)}${lineXML(e)}</p:spPr><p:txBody><a:bodyPr rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:endParaRPr lang="${lang}" dirty="0"/></a:p></p:txBody></p:sp>`}
 /* the animations that play inside one Morph slide, after the transition */
-function morphTiming(anims,spidOf){const id={n:5},T=()=>++id.n,tgt=sp=>`<p:tgtEl><p:spTgt spid="${sp}"/></p:tgtEl>`;
+function morphTiming(anims,spidOf,vids=[]){const id={n:5},T=()=>++id.n,tgt=sp=>`<p:tgtEl><p:spTgt spid="${sp}"/></p:tgtEl>`;
   const setv=sp=>`<p:set><p:cBhvr><p:cTn id="${T()}" dur="1" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn>${tgt(sp)}<p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>`;
   const anim=(sp,at,a,b,d)=>`<p:anim calcmode="lin" valueType="num"><p:cBhvr additive="base"><p:cTn id="${T()}" dur="${d}" fill="hold"/>${tgt(sp)}<p:attrNameLst><p:attrName>${at}</p:attrName></p:attrNameLst></p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:strVal val="${a}"/></p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="${b}"/></p:val></p:tav></p:tavLst></p:anim>`;
   const fx=(sp,d)=>`<p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="${T()}" dur="${d}"/>${tgt(sp)}</p:cBhvr></p:animEffect>`;
   let body='',first=true;const builds=new Set();
+  /* videos in picture places start by themselves with the slide, muted, and loop */
+  for(const v of vids){body+=`<p:par><p:cTn id="${T()}" presetID="1" presetClass="mediacall" presetSubtype="0" fill="hold" nodeType="${first?'afterEffect':'withEffect'}"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst><p:cmd type="call" cmd="playFrom(0.0)"><p:cBhvr><p:cTn id="${T()}" dur="${Math.round((v.dur||5)*1000)}" fill="hold"/>${tgt(v.sp)}</p:cBhvr></p:cmd></p:childTnLst></p:cTn></p:par>`;first=false}
   for(const a of anims||[]){const sp=spidOf(a.n);if(!sp)continue;const d=Math.max(50,Math.round(a.u*1000)),delay=Math.round(a.d*1000),node=first?'afterEffect':'withEffect',outer=T();
     if(['zoom','fade','rise'].includes(a.k)){if(builds.has(sp))continue;
       const preset={zoom:53,fade:10,rise:42}[a.k],inner=a.k==='zoom'?setv(sp)+anim(sp,'ppt_w','0','#ppt_w',d)+anim(sp,'ppt_h','0','#ppt_h',d)+fx(sp,d):a.k==='fade'?setv(sp)+fx(sp,d):setv(sp)+fx(sp,d)+anim(sp,'ppt_x','#ppt_x','#ppt_x',d)+anim(sp,'ppt_y','#ppt_y+.1','#ppt_y',d);
@@ -136,20 +178,22 @@ function morphTiming(anims,spidOf){const id={n:5},T=()=>++id.n,tgt=sp=>`<p:tgtEl
     else if(a.k==='spin')body+=`<p:par><p:cTn id="${outer}" presetID="8" presetClass="emph" presetSubtype="0" fill="hold" nodeType="${node}"><p:stCondLst><p:cond delay="${delay}"/></p:stCondLst><p:childTnLst><p:animRot by="21600000"><p:cBhvr><p:cTn id="${T()}" dur="${d}" fill="hold"/>${tgt(sp)}<p:attrNameLst><p:attrName>r</p:attrName></p:attrNameLst></p:cBhvr></p:animRot></p:childTnLst></p:cTn></p:par>`;
     else continue;first=false}
   if(!body)return'';
-  return`<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst><p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/><p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst><p:childTnLst><p:par><p:cTn id="4" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>${body}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>${builds.size?`<p:bldLst>${[...builds].map(b=>`<p:bldP spid="${b}" grpId="0" animBg="1"/>`).join('')}</p:bldLst>`:''}</p:timing>`}
-function morphSlideXML(s,T,lang,rel,mult){let id=2;const map={},shapes=[];
+  const media=vids.map(v=>`<p:video><p:cMediaNode vol="0" mute="1"><p:cTn id="${T()}" repeatCount="indefinite" fill="hold" display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst></p:cTn>${tgt(v.sp)}</p:cMediaNode></p:video>`).join('');
+  return`<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst><p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/><p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst><p:childTnLst><p:par><p:cTn id="4" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>${body}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq>${media}</p:childTnLst></p:cTn></p:par></p:tnLst>${builds.size?`<p:bldLst>${[...builds].map(b=>`<p:bldP spid="${b}" grpId="0" animBg="1"/>`).join('')}</p:bldLst>`:''}</p:timing>`}
+let VIDS=[];
+function morphSlideXML(s,T,lang,rel,mult){let id=2;const map={},shapes=[];VIDS=[];
   for(const e of s.els){if(e.t==='text'&&!String(e.tx||'').trim())continue;const xml=morphShapeXML(e,id,T,lang,rel,mult);if(!xml)continue;map[e.n]=id;shapes.push(xml);id++}
-  return`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld ${NS}><p:cSld><p:bg><p:bgPr>${fillXML(s.bg)}<a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>${shapes.join('')}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>${MORPH_TR(s.dur||1.25)}${morphTiming(s.anims,n=>map[n])}</p:sld>`}
+  return`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld ${NS}><p:cSld><p:bg><p:bgPr>${fillXML(s.bg)}<a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>${shapes.join('')}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>${MORPH_TR(s.dur||1.25)}${morphTiming(s.anims,n=>map[n],VIDS)}</p:sld>`}
 /* pictures used by Morph slides, saved once each */
-async function encodeImage(src,png){const k=Math.min(1,1920/Math.max(src.width,src.height)),c=frameCanvas(Math.round(src.width*k),Math.round(src.height*k));
+async function encodeImage(src,png){const D=dimsOf(src),k=Math.min(1,1920/Math.max(D.w,D.h)),c=frameCanvas(Math.round(D.w*k),Math.round(D.h*k));
   c.getContext('2d').drawImage(src,0,0,c.width,c.height);const b=await new Promise(r=>c.toBlob(r,png?'image/png':'image/jpeg',.9));return{data:new Uint8Array(await b.arrayBuffer()),w:c.width,h:c.height}}
 
 /* ---------- the whole file ---------- */
 async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
   const MO=window.IMXMorph,needVideo=pages.some(p=>ST.S[p.style].kind!=='morph');
-  const zip=await JSZip.loadAsync(template),cfg=needVideo?await pickCodec():null,mode=cfg?'mp4':'gif';
+  const zip=await JSZip.loadAsync(template),cfg=needVideo?await pickCodec():null,mode=cfg?'mp4':'gif',vcfg=cfg||(await pickCodec());
   const meas=document.createElement('canvas').getContext('2d');const ln=LANG[lang]||'uz-Latn-UZ';
-  const IMGS=new Map();let imgN=0,n=0;
+  const IMGS=new Map(),videoExts=new Set();let imgN=0,n=0;
   const L7='<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout7.xml"/>';
   const relsDoc=body=>`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${L7}${body}</Relationships>`;
   for(let i=0;i<pages.length;i++){const p=pages[i],T=themeFor(p),st=ST.S[p.style];
@@ -158,14 +202,24 @@ async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
       /* collect the pictures first (encoding is async), then write the XML */
       const need=[];slides.forEach(s=>s.els.forEach(e=>{if(e.t==='pic')need.push([e.img,e.n==='logo']);if(e.fillImg)need.push([e.fillImg,false])}));
       for(const [key,png] of need){const kk=key+'|'+T.accent+(png?'|png':'');if(IMGS.has(kk))continue;const src=MO.imgFor(key,T);if(!src){IMGS.set(kk,null);continue}
+        if(isVid(src)){const v=(await exportCopies({images:{k:src}}))[0];await seekAll([v],Math.min(1,(v.duration||2)/2));
+          const enc=await encodeImage(v,false),vb=await videoBytes(src,vcfg),post=`imx_vpost${++imgN}.jpeg`,file=`imx_vid${imgN}.${vb.ext}`;
+          zip.file('ppt/media/'+post,enc.data);zip.file('ppt/media/'+file,vb.data);videoExts.add(vb.ext);IMGS.set(kk,{file:post,video:file,w:enc.w,h:enc.h,dur:v.duration||5});continue}
         const enc=await encodeImage(src,png),file=`imx_img${++imgN}.${png?'png':'jpeg'}`;zip.file('ppt/media/'+file,enc.data);IMGS.set(kk,{file,w:enc.w,h:enc.h})}
       for(const s of slides){n++;const rels=[],rid={};
-        const rel=(key,png)=>{const im=IMGS.get(key+'|'+T.accent+(png?'|png':''));if(!im)return null;if(!rid[im.file]){rid[im.file]='rId'+(rels.length+2);rels.push(`<Relationship Id="${rid[im.file]}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${im.file}"/>`)}return{rid:rid[im.file],w:im.w,h:im.h}};
+        const rel=(key,png)=>{const im=IMGS.get(key+'|'+T.accent+(png?'|png':''));if(!im)return null;
+          if(im.video&&!rid[im.video]){const a='rId'+(rels.length+2),b='rId'+(rels.length+3);rid[im.video]=[a,b];
+            rels.push(`<Relationship Id="${a}" Type="http://schemas.microsoft.com/office/2007/relationships/media" Target="../media/${im.video}"/>`,`<Relationship Id="${b}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="../media/${im.video}"/>`)}
+          if(!rid[im.file]){rid[im.file]='rId'+(rels.length+2);rels.push(`<Relationship Id="${rid[im.file]}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${im.file}"/>`)}return{rid:rid[im.file],w:im.w,h:im.h,video:im.video?{media:rid[im.video][0],link:rid[im.video][1],dur:im.dur}:null}};
         zip.file(`ppt/slides/slide${n}.xml`,morphSlideXML(s,T,ln,rel,mult));zip.file(`ppt/slides/_rels/slide${n}.xml.rels`,relsDoc(rels.join('')))}
       prog(1);continue}
-    n++;const dur=ST.durOf(st,p.f);let media;
-    if(mode==='mp4'){const data=await renderMP4(p,T,cfg,dur,prog);zip.file(`ppt/media/media${n}.mp4`,data);zip.file(`ppt/media/poster${n}.jpeg`,await posterOf(p,T));media={type:'mp4',dur:dur+HOLD}}
-    else{zip.file(`ppt/media/anim${n}.gif`,await renderGIF(p,T,dur,prog));media={type:'gif'}}
+    n++;const dur=ST.durOf(st,p.f);let media;const vids=await exportCopies(T);
+    if(mode==='mp4'){const data=await renderMP4(p,T,cfg,dur,k=>prog(vids.length?k*.6:k),{vids});zip.file(`ppt/media/media${n}.mp4`,data);zip.file(`ppt/media/poster${n}.jpeg`,await posterOf(p,T,0,vids));media={type:'mp4',dur:dur+HOLD};
+      if(vids.length){/* the finished page keeps playing its videos in a looping clip */
+        const L=Math.min(20,Math.max(3,...vids.map(v=>v.duration||3)));
+        zip.file(`ppt/media/loop${n}.mp4`,await renderMP4(p,T,cfg,dur,k=>prog(.6+k*.4),{vids,loop:L}));zip.file(`ppt/media/looppost${n}.jpeg`,await posterOf(p,T,dur+HOLD,vids,dur+HOLD));
+        media.loop=true;media.loopDur=L}}
+    else{if(vids.length)await seekAll(vids,1);zip.file(`ppt/media/anim${n}.gif`,await renderGIF(p,T,dur,prog));media={type:'gif'}}
     const measure=s=>ST.fitFor(meas,s,T);measure.color=s=>ST.colorFor(meas,s,T);
     zip.file(`ppt/slides/slide${n}.xml`,slideXML(p,T,media,ln,measure));zip.file(`ppt/slides/_rels/slide${n}.xml.rels`,slideRels(n,media))}
   const count=n,idx=[...Array(count).keys()];
@@ -178,7 +232,7 @@ async function build({pages,themeFor,lang,template,title},onProgress=()=>{}){
   zip.file('ppt/_rels/presentation.xml.rels',rels);
   let ct=await zip.file('[Content_Types].xml').async('string');
   const def=(ext,type)=>{if(!ct.includes(`Extension="${ext}"`))ct=ct.replace('<Default ',`<Default Extension="${ext}" ContentType="${type}"/><Default `)};
-  def('mp4','video/mp4');def('gif','image/gif');def('jpeg','image/jpeg');def('png','image/png');
+  def('mp4','video/mp4');def('gif','image/gif');if(videoExts.has('webm'))def('webm','video/webm');if(videoExts.has('mov'))def('mov','video/quicktime');if(videoExts.has('m4v'))def('m4v','video/x-m4v');def('jpeg','image/jpeg');def('png','image/png');
   ct=ct.replace('</Types>',idx.map(i=>`<Override PartName="/ppt/slides/slide${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('')+'</Types>');
   zip.file('[Content_Types].xml',ct);
   let core=await zip.file('docProps/core.xml').async('string');core=core.replace(/<dc:title>[^<]*<\/dc:title>|<dc:title\/>/,'').replace('</cp:coreProperties>',`<dc:title>${esc(title||'IMX')}</dc:title></cp:coreProperties>`);zip.file('docProps/core.xml',core);

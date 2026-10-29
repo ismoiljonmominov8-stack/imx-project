@@ -31,6 +31,12 @@ const FONTS={
   body:['Calibri','Segoe UI','Arial','Corbel','Candara','Times New Roman','Georgia','Verdana']
 };
 const SIZES={S:.86,M:1,L:1.18};
+/* text size in points, like Word: headPt for headings and big numbers, bodyPt for everything else.
+   Old projects used S / M / L; those still work through SIZES. */
+const BASE_PT={head:38.4,body:15.6};
+function ratios(T){const m=SIZES[T.size]||1;const hp=+T.headPt,bp=+T.bodyPt;
+  return{head:hp>0?hp/BASE_PT.head:m,body:bp>0?bp/BASE_PT.body:m}}
+function roleMult(role,T){const r=ratios(T);return role==='h'||role==='n'?r.head:r.body}
 /* resolved colours for the current drawing */
 let C={},F={},IMG={};
 function setTheme(T){
@@ -53,7 +59,8 @@ function panel(X,Y,w,h,{r=14,alpha=1,stroke=C.gold}={}){
 /* draws a picture filling the box. Each uploaded picture can carry its own settings (img._fit):
    z = zoom %, x / y = which part stays in view (0-100 %), o = visibility %. Background pictures use bgVis instead of o. */
 function fitOf(img){const f=img&&img._fit||{};return{z:Math.max(1,(+f.z||100)/100),x:(f.x??50)/100,y:(f.y??50)/100,o:(f.o??100)/100}}
-function cover(img,X,Y,w,h,isBg){const f=fitOf(img),k=Math.max(w/img.width,h/img.height)*f.z,iw=img.width*k,ih=img.height*k;
+function dimsOf(i){return[i.videoWidth||i.naturalWidth||i.width||1,i.videoHeight||i.naturalHeight||i.height||1]}
+function cover(img,X,Y,w,h,isBg){const f=fitOf(img),[W0,H0]=dimsOf(img),k=Math.max(w/W0,h/H0)*f.z,iw=W0*k,ih=H0*k;
   const a=x.globalAlpha;if(!isBg)x.globalAlpha=a*f.o;x.drawImage(img,X+(w-iw)*f.x,Y+(h-ih)*f.y,iw,ih);x.globalAlpha=a}
 const DUST=Array.from({length:70},(_,i)=>({x:(i*397)%1600,y:(i*571)%900,r:.6+(i%5)*.35,v:.15+(i%7)*.05,a:i*1.3}));
 function bg(t,{dust=true}={}){
@@ -388,15 +395,16 @@ function wrap(text,font,size,weight,w,spc=0){x.save();x.font=`${weight} ${size}p
     if(!words.length){out.push('');return}
     words.forEach(wd=>{const test=line?line+' '+wd:wd;if(line&&x.measureText(test).width+test.length*spc>w){out.push(line);line=wd}else line=test});out.push(line)});x.restore();return out}
 /* the size a slot's text gets after shrinking to fit its box */
-function fitSlot(s,mult){const R=ROLE[s.role]||ROLE.b,font=R.font==='head'?F.head:F.body;let size=(s.size||R.px)*mult;
+function fitSlot(s,T){const R=ROLE[s.role]||ROLE.b,font=R.font==='head'?F.head:F.body;let size=(s.size||R.px)*roleMult(s.role,T);
+  if(T.fit===false||T.fit==='no')return{size,lines:wrap(s.text,font,size,R.weight,s.w,R.spc),font,weight:R.weight,spc:R.spc};
   for(let i=0;i<30;i++){const lines=wrap(s.text,font,size,R.weight,s.w,R.spc);if(lines.length*size*LINE<=s.h+2||size<11)return{size,lines,font,weight:R.weight,spc:R.spc};size*=.93}
   return{size,lines:wrap(s.text,font,size,R.weight,s.w,R.spc),font,weight:R.weight,spc:R.spc}}
 function slotColor(s){if(!s.color)return s.role==='h'?C.hi:s.role==='t'?C.hi:s.role==='n'?C.hi:C.text;if(s.color==='muted')return C.muted;if(s.color==='accent')return C.gold;return s.color}
 const EFFECTS=['fade','rise','fly','wipe','split','zoom','typewriter','words'];
 const SPEED={slow:.9,normal:.6,fast:.4};
 /* draws a slot as it will look in PowerPoint, with an approximation of its entrance effect */
-function drawSlot(s,t,mult,effect='fade',speed='normal'){if(!s.text)return;const d=SPEED[speed]||.6,p=seg(t,s.at,s.at+(effect==='typewriter'?Math.max(d,s.text.length*.035):effect==='words'?Math.max(d,s.text.split(/\s+/).length*.12):d));if(p<=0)return;
-  const fit=fitSlot(s,mult),lh=fit.size*LINE,blockH=fit.lines.length*lh;let y0=s.y;if(s.valign==='m')y0=s.y+(s.h-blockH)/2;if(s.valign==='b')y0=s.y+s.h-blockH;
+function drawSlot(s,t,T,effect='fade',speed='normal'){if(!s.text)return;const d=SPEED[speed]||.6,p=seg(t,s.at,s.at+(effect==='typewriter'?Math.max(d,s.text.length*.035):effect==='words'?Math.max(d,s.text.split(/\s+/).length*.12):d));if(p<=0)return;
+  const fit=fitSlot(s,T),lh=fit.size*LINE,blockH=fit.lines.length*lh;let y0=s.y;if(s.valign==='m')y0=s.y+(s.h-blockH)/2;if(s.valign==='b')y0=s.y+s.h-blockH;
   x.save();x.translate(s.x+s.w/2,s.y+s.h/2);if(s.rot)x.rotate(s.rot*Math.PI/180);x.translate(-(s.x+s.w/2),-(s.y+s.h/2));
   let alpha=1,dy=0,sc=1;const e=eo(p);
   if(effect==='fade')alpha=p;if(effect==='rise'){alpha=p;dy=36*(1-e)}if(effect==='fly')dy=(H-s.y)*(1-e);if(effect==='zoom'){sc=lerp(.2,1,e);alpha=p}
@@ -417,10 +425,10 @@ function durOf(st,f){return st.durFor?st.durFor(f):st.dur}
 /* the text boxes of a page, with its own values filled in */
 function slotsOf(id,f){return (S[id].slots(f)||[]).filter(s=>String(s.text||'').trim())}
 /* draws one frame: background animation, plus (optionally) the text as PowerPoint will show it */
-function render(ctx,id,f,t,T,{text=true}={}){x=ctx;setTheme(T);const st=S[id],m=SIZES[T.size]||1;
+function render(ctx,id,f,t,T,{text=true}={}){x=ctx;setTheme(T);const st=S[id],m=ratios(T).head;
   ctx.save();ctx.clearRect(0,0,W,H);st.draw(t,f,m);
-  if(text)slotsOf(id,f).forEach(s=>drawSlot(s,t,m,T.effect,T.speed));ctx.restore()}
-function fitFor(ctx,s,T){x=ctx;setTheme(T);return fitSlot(s,SIZES[T.size]||1)}
+  if(text)slotsOf(id,f).forEach(s=>drawSlot(s,t,T,T.effect,T.speed));ctx.restore()}
+function fitFor(ctx,s,T){x=ctx;setTheme(T);return fitSlot(s,T)}
 function colorFor(ctx,s,T){x=ctx;setTheme(T);return slotColor(s)}
-window.IMXStyles={W,H,S,ORDER,THEMES,FONTS,SIZES,EFFECTS,SPEED,render,slotsOf,durOf,fitFor,colorFor,ROLE,LINE,mix};
+window.IMXStyles={ratios,roleMult,BASE_PT,dimsOf,W,H,S,ORDER,THEMES,FONTS,SIZES,EFFECTS,SPEED,render,slotsOf,durOf,fitFor,colorFor,ROLE,LINE,mix};
 })();

@@ -95,7 +95,8 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 .group>b{font-size:12px;color:var(--gold);letter-spacing:.08em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
 .media{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .thumb{position:relative;width:72px;height:48px;border-radius:6px;overflow:hidden;border:1px solid var(--gold-lo);background:var(--ink)}
-.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb img,.thumb video{width:100%;height:100%;object-fit:cover}
+.thumb .vtag{position:absolute;left:4px;bottom:3px;font-size:10px;font-style:normal;color:#fff;background:rgba(0,0,0,.6);border-radius:4px;padding:0 4px}
 .imgctl{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:8px;border:1px dashed var(--line);border-radius:8px}
 .imgctl .f span{font-size:11px}.imgctl .btn{grid-column:1/-1;justify-self:start}
 .thumb button{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(0,0,0,.75);color:#fff;font-size:11px;padding:0}
@@ -250,6 +251,9 @@ Object.assign(UI.en,{subtitle:'Subtitle',logo:'Logo (optional)',left:'Left text 
 Object.assign(UI.uz,{changeImg:'Rasmni almashtirish',imgVis:'Koʻrinishi',imgZoom:'Kattalashtirish',imgX:'Chap ↔ oʻng',imgY:'Yuqori ↕ past',imgReset:'Asl holiga qaytarish',badImg:'Bu rasmni ochib boʻlmadi'});
 Object.assign(UI.ru,{changeImg:'Заменить картинку',imgVis:'Видимость',imgZoom:'Увеличение',imgX:'Влево ↔ вправо',imgY:'Вверх ↕ вниз',imgReset:'Сбросить',badImg:'Не удалось открыть картинку'});
 Object.assign(UI.en,{changeImg:'Change picture',imgVis:'Visibility',imgZoom:'Zoom',imgX:'Left ↔ right',imgY:'Up ↕ down',imgReset:'Reset',badImg:'This picture could not be opened'});
+Object.assign(UI.uz,{addImg:'+ Rasm yoki video',headPt:'Sarlavha oʻlchami (pt)',bodyPt:'Matn oʻlchami (pt)',fitTxt:'Matn joyiga sigʻmasa',fitYes:'Avtomatik kichraytirish',fitNo:'Oʻlchamni saqlash',bigVideo:'Video juda katta (150 MB dan oshmasin)'});
+Object.assign(UI.ru,{addImg:'+ Фото или видео',headPt:'Размер заголовка (pt)',bodyPt:'Размер текста (pt)',fitTxt:'Если текст не помещается',fitYes:'Уменьшать автоматически',fitNo:'Сохранять размер',bigVideo:'Видео слишком большое (не более 150 МБ)'});
+Object.assign(UI.en,{addImg:'+ Picture or video',headPt:'Heading size (pt)',bodyPt:'Text size (pt)',fitTxt:'If text does not fit',fitYes:'Shrink automatically',fitNo:'Keep the size',bigVideo:'The video is too big (150 MB max)'});
 const t=(k,v)=>{let s=UI[ui][k]??UI.en[k]??k;if(v)for(const n in v)s=s.replace('{'+n+'}',v[n]);return s};
 
 /* ---------- state ---------- */
@@ -257,12 +261,22 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clone=o=>JSON.parse(JSON.stringify(o));
 const uid=()=>Math.random().toString(36).slice(2,9);
-function blank(){return{v:2,lang:'uz',title:'',theme:{preset:'navy',...ST.THEMES.navy,name:undefined,headFont:'Georgia',bodyFont:'Calibri',size:'M',effect:'rise',speed:'normal',bgImg:'',bgVis:35},pages:[],images:{}}}
+function blank(){return{v:2,lang:'uz',title:'',theme:{preset:'navy',...ST.THEMES.navy,name:undefined,headFont:'Georgia',bodyFont:'Calibri',size:'M',headPt:38,bodyPt:16,fit:'yes',effect:'rise',speed:'normal',bgImg:'',bgVis:35},pages:[],images:{}}}
 let S=blank(),sel='theme',tab='content';
 
 /* pictures: stored as data URLs in the project, kept as Image objects for drawing */
 const IMGS={};
-function imgObj(id){if(!id||!S.images[id])return null;if(!IMGS[id]){const im=new Image();im.onload=()=>draw();im.src=S.images[id];IMGS[id]=im}return IMGS[id].complete&&IMGS[id].naturalWidth?IMGS[id]:null}
+/* videos: the file itself is kept in VIDEOS (and IndexedDB); S.images only holds a 'video:<type>' marker */
+const VIDEOS={};
+const isVideoId=id=>typeof S.images[id]==='string'&&S.images[id].startsWith('video:');
+function imgObj(id){if(!id||!S.images[id])return null;
+  if(isVideoId(id)){if(!VIDEOS[id])return null;
+    if(!IMGS[id]){const v=document.createElement('video');v.muted=true;v.defaultMuted=true;v.loop=true;v.playsInline=true;v.autoplay=true;v.preload='auto';
+      v.src=URL.createObjectURL(VIDEOS[id]);v.oncanplay=()=>draw();v.play().catch(()=>{});IMGS[id]=v}
+    const v=IMGS[id];if(v.paused)v.play().catch(()=>{});return v.readyState>=2?v:null}
+  if(!IMGS[id]){const im=new Image();im.onload=()=>draw();im.src=S.images[id];IMGS[id]=im}return IMGS[id].complete&&IMGS[id].naturalWidth?IMGS[id]:null}
+function mediaSrc(id){if(!id||!S.images[id])return'';if(isVideoId(id)){imgObj(id);return IMGS[id]?IMGS[id].src:''}return S.images[id]}
+function clearMedia(){for(const k in IMGS){const o=IMGS[k];if(o&&o.tagName==='VIDEO'){o.pause();URL.revokeObjectURL(o.src)}delete IMGS[k]}}
 async function readImage(file,max=1920){
   const url=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)});
   if(/svg|gif/.test(file.type))return url;
@@ -270,7 +284,12 @@ async function readImage(file,max=1920){
   const k=Math.min(1,max/Math.max(im.width,im.height));if(k===1&&file.size<700000)return url;
   const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
   return c.toDataURL('image/jpeg',.86)}
-async function addImage(file){const id=uid();S.images[id]=await readImage(file);return id}
+const MAX_VIDEO=150*1024*1024;
+async function addImage(file){const id=uid();
+  if(/^video\//.test(file.type)||/\.(mp4|webm|mov|m4v)$/i.test(file.name)){
+    if(file.size>MAX_VIDEO){toast(t('bigVideo'));throw new Error('big')}
+    VIDEOS[id]=file;S.images[id]='video:'+(file.type||'video/mp4');IDB.set('vid:'+id,file);return id}
+  S.images[id]=await readImage(file);return id}
 /* theme for one page: deck values, with the page's own overrides on top */
 function themeFor(p){const T={...S.theme};if(p&&p.ov)for(const k in p.ov)if(p.ov[k]!==''&&p.ov[k]!=null)T[k]=p.ov[k];
   const images={};for(const id in S.images){const o=imgObj(id);if(o){o._fit=(S.imgSet||{})[id]||null;images[id]=o}}
@@ -366,8 +385,9 @@ function fieldsForm(root,p,fields,prefix){
 /* picture slot: upload / remove, then sliders for how the picture sits in its place */
 function imagePicker(box,get,set,{bg=false}={}){
   const drawP=()=>{const id=get(),src=id&&S.images[id];
-    box.innerHTML=(src?`<span class="thumb"><img alt="" src="${src}"><button aria-label="${esc(t('remove'))}">✕</button></span>`:'')+`<label class="btn small file">${esc(src?t('changeImg'):t('addImg'))}<input type="file" accept="image/*"></label>`;
-    box.querySelector('input').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{set(await addImage(f));drawP()}catch(_){toast(t('badImg'))}};
+    const vid=src&&isVideoId(id),url=src?mediaSrc(id):'';
+    box.innerHTML=(src?`<span class="thumb">${vid?`<video src="${url}" muted autoplay loop playsinline></video><i class="vtag">▶</i>`:`<img alt="" src="${url}">`}<button aria-label="${esc(t('remove'))}">✕</button></span>`:'')+`<label class="btn small file">${esc(src?t('changeImg'):t('addImg'))}<input type="file" accept="image/*,video/mp4,video/webm,video/quicktime,video/*"></label>`;
+    box.querySelector('input').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{set(await addImage(f));drawP()}catch(err){if(String(err&&err.message)!=='big')toast(t('badImg'))}};
     const x=box.querySelector('.thumb button');if(x)x.onclick=()=>{set('');drawP()};
     if(src){S.imgSet=S.imgSet||{};const st=S.imgSet[id]=S.imgSet[id]||{};
       const rows=[...(bg?[]:[['o',0,100,100,'imgVis']]),['z',100,250,100,'imgZoom'],['x',0,100,50,'imgX'],['y',0,100,50,'imgY']];
@@ -390,7 +410,10 @@ function themeForm(root,o,page){
   h+=`<div class="group"><b>${esc(t('fonts'))}</b>
     <label class="f"><span>${esc(t('headFont'))}</span><select data-k="headFont">${dflt}${ST.FONTS.head.map(f=>`<option value="${f}" style="font-family:'${f}'"${o.headFont===f?' selected':''}>${f}</option>`).join('')}</select></label>
     <label class="f"><span>${esc(t('bodyFont'))}</span><select data-k="bodyFont">${dflt}${ST.FONTS.body.map(f=>`<option value="${f}" style="font-family:'${f}'"${o.bodyFont===f?' selected':''}>${f}</option>`).join('')}</select></label>
-    <label class="f"><span>${esc(t('size'))}</span><select data-k="size">${dflt}${['S','M','L'].map(s=>opt(s,t(s),o.size)).join('')}</select></label></div>`;
+    <div class="row2"><label class="f"><span>${esc(t('headPt'))}</span><input type="number" min="6" max="200" step="1" list="ptList" data-n="headPt" value="${esc(o.headPt??'')}" placeholder="${page?esc(S.theme.headPt):''}"></label>
+    <label class="f"><span>${esc(t('bodyPt'))}</span><input type="number" min="6" max="200" step="1" list="ptList" data-n="bodyPt" value="${esc(o.bodyPt??'')}" placeholder="${page?esc(S.theme.bodyPt):''}"></label></div>
+    <label class="f"><span>${esc(t('fitTxt'))}</span><select data-k="fit">${dflt}${opt('yes',t('fitYes'),o.fit)}${opt('no',t('fitNo'),o.fit)}</select></label>
+    <datalist id="ptList">${[8,9,10,11,12,14,16,18,20,22,24,26,28,32,36,40,44,48,54,60,66,72,80,88,96,110,128].map(v=>`<option value="${v}">`).join('')}</datalist></div>`;
   h+=`<div class="group"><b>${esc(t('anim'))}</b><div class="row2">
     <label class="f"><span>${esc(t('effect'))}</span><select data-k="effect">${dflt}${ST.EFFECTS.map(e=>opt(e,t('e_'+e),o.effect)).join('')}</select></label>
     <label class="f"><span>${esc(t('speed'))}</span><select data-k="speed">${dflt}${['slow','normal','fast'].map(s=>opt(s,t(s),o.speed)).join('')}</select></label></div></div>`;
@@ -401,6 +424,8 @@ function themeForm(root,o,page){
     $('dLang').onchange=e=>{S.lang=e.target.value;changed(true)};
     root.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{const v=ST.THEMES[b.dataset.p];Object.assign(S.theme,{preset:b.dataset.p,bg:v.bg,accent:v.accent,text:v.text});changed();renderSide();renderList()})}
   root.querySelectorAll('select[data-k]').forEach(s=>s.onchange=()=>{o[s.dataset.k]=s.value;changed(true)});
+  root.querySelectorAll('input[data-n]').forEach(inp=>inp.oninput=()=>{const k=inp.dataset.n,v=inp.value.trim();
+    if(v===''){if(page){delete o[k];changed(true)}return}const n=Math.max(6,Math.min(200,Math.round(+v)));if(!isFinite(n))return;o[k]=n;changed(true)});
   const own=root.querySelector('#ownColors');
   root.querySelectorAll('[data-c]').forEach(inp=>inp.oninput=()=>{if(page&&own)own.checked=true;o[inp.dataset.c]=inp.value;if(!page)S.theme.preset='';changed(true);renderList()});
   if(own)own.onchange=()=>{if(own.checked){['bg','accent','text'].forEach(k=>{o[k]=root.querySelector(`[data-c="${k}"]`).value})}else{delete o.bg;delete o.accent;delete o.text}changed(true)};
@@ -445,16 +470,24 @@ $('createBtn').onclick=async()=>{if(!S.pages.length)return;
   catch(e){console.error(e);$('progress').hidden=true;toast(t('failed',{e:e.message||e}))}};
 
 /* ---------- save, open, example ---------- */
-$('saveBtn').onclick=()=>{download(fileName('.imx.json'),new Blob([JSON.stringify({imx:2,...S})],{type:'application/json'}));toast(t('saved'))};
+const blobToData=b=>new Promise((r,j)=>{const f=new FileReader();f.onload=()=>r(f.result);f.onerror=j;f.readAsDataURL(b)});
+$('saveBtn').onclick=async()=>{const videos={};for(const id in S.images)if(isVideoId(id)&&VIDEOS[id])videos[id]=await blobToData(VIDEOS[id]);
+  download(fileName('.imx.json'),new Blob([JSON.stringify({imx:2,...S,videos})],{type:'application/json'}));toast(t('saved'))};
 $('openFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
-  try{const o=JSON.parse(await f.text());if(!o||o.imx!==2||!Array.isArray(o.pages))throw 0;load(o);toast(t('opened'))}catch(_){toast(t('badfile'))}};
+  try{const o=JSON.parse(await f.text());if(!o||o.imx!==2||!Array.isArray(o.pages))throw 0;
+    for(const id in (o.videos||{})){const b=await (await fetch(o.videos[id])).blob();VIDEOS[id]=b;IDB.set('vid:'+id,b)}delete o.videos;
+    load(o);toast(t('opened'))}catch(_){toast(t('badfile'))}};
 let exArm=0;
 $('exampleBtn').onclick=()=>{if(S.pages.length&&Date.now()-exArm>3000){exArm=Date.now();toast(t('confirmEx'));return}
   const e=blank();e.title='Namuna taqdimot';e.pages=['glassTitle','split','accordion','points','stats','wheel','flipCards','quiz','contact','kinetic'].map(id=>({id:uid(),style:id,f:clone(ST.S[id].sample),ov:{}}));
   e.pages[e.pages.length-1].f.sentence='E\'tiboringiz uchun rahmat';load(e)};
 function load(o){const b=blank();S={...b,...o,theme:{...b.theme,...(o.theme||{})},images:o.images||{},imgSet:o.imgSet||{}};delete S.imx;delete S.imagesInDB;
+  /* projects from before point sizes: turn S / M / L into points */
+  const pts=(sz)=>{const m=ST.SIZES[sz]||1;return{headPt:Math.round(ST.BASE_PT.head*m),bodyPt:Math.round(ST.BASE_PT.body*m)}};
+  if(!(o.theme||{}).headPt)Object.assign(S.theme,pts(S.theme.size));
+  (S.pages||[]).forEach(p=>{if(p.ov&&p.ov.size&&!p.ov.headPt){Object.assign(p.ov,pts(p.ov.size));delete p.ov.size}});
   S.pages.forEach(p=>{p.id=p.id||uid();p.ov=p.ov||{};if(!ST.S[p.style])p.style='split'});
-  for(const k in IMGS)delete IMGS[k];sel=S.pages[0]?.id||'theme';tab='content';renderList();renderSide();replay();saveSoon()}
+  clearMedia();sel=S.pages[0]?.id||'theme';tab='content';renderList();renderSide();replay();saveSoon()}
 
 /* ---------- autosave and refresh ---------- */
 let saveT=0,listT=0;
@@ -475,6 +508,7 @@ try{ui=localStorage.getItem('imx-ui')||'uz'}catch(_){}if(!UI[ui])ui='uz';
 let saved=null;try{saved=JSON.parse(localStorage.getItem('imx2')||'null')}catch(_){}
 applyUI();
 (async()=>{if(saved&&saved.pages){if(saved.imagesInDB||!Object.keys(saved.images||{}).length){const im=await IDB.get('images');if(im)saved.images=im}
+    for(const id in (saved.images||{}))if(String(saved.images[id]).startsWith('video:')){const b=await IDB.get('vid:'+id);if(b)VIDEOS[id]=b}
     delete saved.imagesInDB;load(saved)}else{renderList();renderSide()}
   if(!S.pages.length)openGallery(null)})();
 </script>
