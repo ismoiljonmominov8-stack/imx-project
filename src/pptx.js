@@ -35,9 +35,17 @@ async function realDuration(v){if(v.readyState<1)await Promise.race([once(v,'loa
 async function seekAll(vids,t){await Promise.all(vids.map(v=>{const d=v._dur||(isFinite(v.duration)&&v.duration)||1,tt=((t%d)+d)%d;if(Math.abs(v.currentTime-tt)<.002)return null;
   const p=Promise.race([once(v,'seeked'),sleep(2000)]);v.currentTime=tt;return p}))}
 const VEXT={'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','video/x-m4v':'m4v'};
+/* which codec is inside an MP4 / MOV file (looks for the sample-entry name) */
+async function codecOf(b){const look=async blob=>{const t=new Uint8Array(await blob.arrayBuffer());let s='';for(let i=0;i<t.length;i++)s+=String.fromCharCode(t[i]);return s};
+  const head=await look(b.slice(0,Math.min(b.size,4e6))),tail=b.size>4e6?await look(b.slice(b.size-4e6)):'';const all=head+tail;
+  return /hvc1|hev1/.test(all)?'hevc':/avc1/.test(all)?'h264':'other'}
+/* PowerPoint plays H.264 MP4 smoothly on every computer. Anything else (WebM, HEVC / iPhone "High Efficiency",
+   very large 4K or 60 fps files, very high bitrate) is converted to a 720p H.264 MP4 when the browser can encode. */
 async function videoBytes(el,cfg){const b=await (await fetch(el.src)).blob(),ext=VEXT[b.type]||'mp4';
-  /* PowerPoint plays MP4 (H.264) everywhere; other formats (WebM, MOV...) are converted when the browser can encode */
-  if(ext!=='mp4'&&cfg){try{return{data:await transcodeMP4(el,cfg),ext:'mp4'}}catch(e){console.warn('video convert failed',e)}}
+  let convert=ext!=='mp4';
+  if(!convert){const codec=await codecOf(b),d=el._dur||el.duration||0,big=(el.videoWidth||0)*(el.videoHeight||0)>1920*1080,heavy=d>0&&b.size*8/d>16e6;
+    convert=codec!=='h264'||big||heavy}
+  if(convert&&cfg){try{return{data:await transcodeMP4(el,cfg),ext:'mp4'}}catch(e){console.warn('video convert failed',e)}}
   return{data:new Uint8Array(await b.arrayBuffer()),ext}}
 async function transcodeMP4(src,cfg,maxDur=1800){
   const v=(await exportCopies({images:{k:src}}))[0],d0=dimsOf(v),k=Math.min(1,1280/d0.w,720/d0.h);
@@ -47,16 +55,17 @@ async function transcodeMP4(src,cfg,maxDur=1800){
   const muxer=new Mp4Muxer.Muxer({target,video:{codec:'avc',width:w,height:h},fastStart:'in-memory'});
   let err=null;const enc=new VideoEncoder({output:(ch,meta)=>muxer.addVideoChunk(ch,meta),error:e=>{err=e}});enc.configure(c2);
   const end=Math.min(maxDur,v._dur||600);
-  if('requestVideoFrameCallback' in v){await seekAll([v],0);let k=0,last=-1;
-    await new Promise(res=>{const stop=()=>{v.pause();res()};
-      const cb=(now,meta)=>{if(err||meta.mediaTime>=end||v.ended){stop();return}
-        const ts=Math.round(meta.mediaTime*1e6);if(ts>last){last=ts;x.drawImage(v,0,0,w,h);const fr=new VideoFrame(c,{timestamp:ts});enc.encode(fr,{keyFrame:k++%50===0});fr.close()}
-        v.requestVideoFrameCallback(cb)};
-      v.requestVideoFrameCallback(cb);v.onended=stop;v.playbackRate=2;v.play().catch(stop);setTimeout(stop,(end/2+10)*1000)})}
-  else{const n=Math.max(1,Math.floor(end*FPS));
-    for(let i=0;i<n;i++){if(err)throw err;await seekAll([v],i/FPS);x.drawImage(v,0,0,w,h);
-      const fr=new VideoFrame(c,{timestamp:Math.round(i*1e6/FPS),duration:Math.round(1e6/FPS)});enc.encode(fr,{keyFrame:i%(FPS*2)===0});fr.close();
-      while(enc.encodeQueueSize>8)await sleep(4)}}
+  let last=-1,nf=0;const put=ts=>{x.drawImage(v,0,0,w,h);const fr=new VideoFrame(c,{timestamp:ts});enc.encode(fr,{keyFrame:nf++%50===0});fr.close();last=ts};
+  if('requestVideoFrameCallback' in v){await seekAll([v],0);put(0);
+    await new Promise(res=>{let seen=performance.now(),done=false;const stop=()=>{if(done)return;done=true;v.pause();clearInterval(watch);res()};
+      const cb=(now,meta)=>{if(done)return;seen=performance.now();if(err||meta.mediaTime>=end-.001){stop();return}
+        const ts=Math.round(meta.mediaTime*1e6);if(ts>last)put(ts);v.requestVideoFrameCallback(cb)};
+      /* stop only when the video really ends or stops delivering frames for a while */
+      const watch=setInterval(()=>{if(v.ended||performance.now()-seen>4000)stop()},500);
+      v.requestVideoFrameCallback(cb);v.onended=stop;v.playbackRate=1;v.play().catch(stop)})}
+  /* anything not captured yet (or no frame callbacks in this browser): step through the rest frame by frame */
+  if(last/1e6<end-.2){const from=Math.max(0,Math.ceil((last/1e6+.001)*FPS)),n=Math.floor(end*FPS);
+    for(let i=from;i<n;i++){if(err)throw err;await seekAll([v],i/FPS);const ts=Math.round(i*1e6/FPS);if(ts>last)put(ts);while(enc.encodeQueueSize>8)await sleep(4)}}
   await enc.flush();enc.close();muxer.finalize();if(err)throw err;return new Uint8Array(target.buffer)}
 function frameCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c}
 async function posterOf(page,T,at=0,vids=[],vt=at){const c=frameCanvas(1280,720),x=c.getContext('2d');x.setTransform(.8,0,0,.8,0,0);
